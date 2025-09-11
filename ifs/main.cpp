@@ -12,6 +12,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#define CL_MANAGER_GL
 #include "CLManager.h"
 #include "Key.h"
 #include "kernels.h"
@@ -139,7 +140,7 @@ bool init()
 	glfwSetFramebufferSizeCallback(window, onWindowResize);
 	glfwSetKeyCallback(window, keyPress);
 
-	if (!CLManager::init(window, createKernelSource()))
+	if (!CLManager::initWithGLContext(window, createKernelSource()))
 	{
 		std::cout << "failed to initialise CLManager, exiting" << std::endl;
 		glfwTerminate();

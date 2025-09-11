@@ -60,9 +60,6 @@
     <ClCompile Include="Camera2D.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CLManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="filedialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
