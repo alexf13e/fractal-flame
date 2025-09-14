@@ -116,7 +116,7 @@ bool init()
 
 	const int initialWindowWidth = monitorWidth * 0.8f;
 	const int initialWindowHeight = monitorHeight * 0.8f;
-	window = glfwCreateWindow(initialWindowWidth, initialWindowHeight, "iterated function system", NULL, NULL);
+	window = glfwCreateWindow(initialWindowWidth, initialWindowHeight, "Fractal Flame IFS", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
