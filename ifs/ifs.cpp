@@ -2,6 +2,9 @@
 #include "ifs.h"
 
 #include <random>
+#include <stack>
+#include <fstream>
+#include <sstream>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -22,7 +25,15 @@
 
 namespace ifs
 {
-	namespace //put variables inside private namespace to prevent modifying them without using setter functions
+	struct FlameConfig
+	{
+		uint32_t numVariations;
+		uint32_t variations[MAX_VARIATIONS];
+		float colours[MAX_VARIATIONS * 3];
+		float weights[MAX_VARIATIONS];
+	};
+
+	namespace
 	{
 		ShaderProgram shFullScreenTri;
 		GLuint vao_fullScreenTri;
@@ -56,11 +67,8 @@ namespace ifs
 		float gamma;
 		float darkness;
 
-		uint32_t numVariations;
-		uint32_t variations[MAX_VARIATIONS];
-		float coloursRGB[MAX_VARIATIONS * 3];
-		float coloursLCh[MAX_VARIATIONS * 3];
-		float weights[MAX_VARIATIONS];
+		FlameConfig currentFlame;
+		std::stack<FlameConfig> previousFlames;
 
 		uint32_t frameNum = 0;
 
@@ -117,16 +125,6 @@ namespace ifs
 
 	void createPreviewTexture()
 	{
-		//get rid of previous gl buffer in list of objects to acquire
-		/*for (uint32_t i = 0; i < glObjectsToAcquire.size(); i++)
-		{
-			if (glObjectsToAcquire[i]() == CLManager::glBuffers[glb_previewTexture].clBuffer())
-			{
-				glObjectsToAcquire.erase(glObjectsToAcquire.begin() + i);
-				break;
-			}
-		}*/
-
 		glObjectsToAcquire.clear();
 
 		//replace preview buffer
@@ -237,16 +235,17 @@ namespace ifs
 	void addDefaultVariation()
 	{
 		//shortcut for adding a new variation with some parameters
-		if (numVariations < MAX_VARIATIONS)
+		if (currentFlame.numVariations < MAX_VARIATIONS)
 		{
-			uint32_t index = numVariations;
-			numVariations++;
+			uint32_t index = currentFlame.numVariations;
+			currentFlame.numVariations++;
 
+			glm::vec3 rgb = { 1.0f, 1.0f, 1.0f };
 			setVariationNum(index, 0);
-			setVariationColour(index, 1.0f, 0.0f, 0.0f);
+			setVariationColour(index, rgb);
 			setVariationWeight(index, 1.0f);
 
-			CLManager::setKernelParamValue(k_produceSamples, 4, numVariations);
+			CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
 			clearSingleFrame = true;
 		}
 	}
@@ -254,17 +253,17 @@ namespace ifs
 	void addRandomVariation()
 	{
 		//shortcut for adding variation with randomised parameters
-		if (numVariations < MAX_VARIATIONS)
+		if (currentFlame.numVariations < MAX_VARIATIONS)
 		{
-			uint32_t index = numVariations;
-			numVariations++;
+			uint32_t index = currentFlame.numVariations;
+			currentFlame.numVariations++;
 
-			setVariationNum(index, VALID_VARIATIONS[randomVariationIndex()]);
-			float* col = randomOKLCh();
-			setVariationColour(index, col[0], col[1], col[2]);
+			setVariationNum(index, VALID_VARIATIONS[randomVariationNum()]);
+			glm::vec3 rgb = randomOKLChtoRGB();
+			setVariationColour(index, rgb);
 			setVariationWeight(index, randomFloat());
 
-			CLManager::setKernelParamValue(k_produceSamples, 4, numVariations);
+			CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
 			clearSingleFrame = true;
 		}
 	}
@@ -272,36 +271,29 @@ namespace ifs
 	void removeVariation(uint32_t index)
 	{
 		//shift variations down after the deleted one
-		for (uint32_t j = index; j < numVariations - 1; j++)
+		for (uint32_t j = index; j < currentFlame.numVariations - 1; j++)
 		{
-			variations[j] = variations[j + 1];
-			coloursRGB[j * 3 + 0] = coloursRGB[(j + 1) * 3 + 0];
-			coloursRGB[j * 3 + 1] = coloursRGB[(j + 1) * 3 + 1];
-			coloursRGB[j * 3 + 2] = coloursRGB[(j + 1) * 3 + 2];
-			weights[j] = weights[j + 1];
+			currentFlame.variations[j] = currentFlame.variations[j + 1];
+			currentFlame.colours[j * 3 + 0] = currentFlame.colours[(j + 1) * 3 + 0];
+			currentFlame.colours[j * 3 + 1] = currentFlame.colours[(j + 1) * 3 + 1];
+			currentFlame.colours[j * 3 + 2] = currentFlame.colours[(j + 1) * 3 + 2];
+			currentFlame.weights[j] = currentFlame.weights[j + 1];
 		}
 
-		numVariations--;
-
-		//reset values in unused variation (not really necessary)
-		variations[numVariations] = 0;
-		coloursRGB[numVariations * 3 + 0] = 0.0f;
-		coloursRGB[numVariations * 3 + 1] = 0.0f;
-		coloursRGB[numVariations * 3 + 2] = 0.0f;
-		weights[numVariations] = 0.0f;
+		currentFlame.numVariations--;
 
 		//update kernel buffer parameters
-		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, variations);
-		CLManager::writeBuffer(b_colours, MAX_VARIATIONS * 3, coloursRGB);
-		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, weights);
-		CLManager::setKernelParamValue(k_produceSamples, 4, numVariations);
+		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, currentFlame.variations);
+		CLManager::writeBuffer(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
+		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, currentFlame.weights);
+		CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
 
 		clearSingleFrame = true;
 	}
 
 	void setVariationNum(uint32_t index, uint32_t variation)
 	{
-		if (index >= numVariations) return;
+		if (index >= currentFlame.numVariations) return;
 
 		bool valid = false;
 		for (uint32_t i = 0; i < NUM_VALID_VARIATIONS; i++)
@@ -319,35 +311,199 @@ namespace ifs
 			return;
 		}
 
-		variations[index] = variation;
-		CLManager::writeBuffer(b_variations, 1, &variations[index], index);
+		currentFlame.variations[index] = variation;
+		CLManager::writeBuffer(b_variations, 1, &currentFlame.variations[index], index);
 		clearSingleFrame = true;
 	}
 
-	void setVariationColour(uint32_t index, float L, float C, float h)
+	void setVariationColour(uint32_t index, glm::vec3 rgb)
 	{
-		if (index >= numVariations) return;
+		if (index >= currentFlame.numVariations) return;
 
-		coloursLCh[index * 3 + 0] = L;
-		coloursLCh[index * 3 + 1] = C;
-		coloursLCh[index * 3 + 2] = h;
+		currentFlame.colours[index * 3 + 0] = rgb.x;
+		currentFlame.colours[index * 3 + 1] = rgb.y;
+		currentFlame.colours[index * 3 + 2] = rgb.z;
 
-		float* rgb = OKLChtoRGB(&coloursLCh[index * 3]);
-		coloursRGB[index * 3 + 0] = rgb[0];
-		coloursRGB[index * 3 + 1] = rgb[1];
-		coloursRGB[index * 3 + 2] = rgb[2];
 
-		CLManager::writeBuffer(b_colours, 3, &coloursRGB[index * 3], index * 3);
+		CLManager::writeBuffer(b_colours, 3, &currentFlame.colours[index * 3], index * 3);
 		clearSingleFrame = true;
 	}
 
 	void setVariationWeight(uint32_t index, float w)
 	{
-		if (index >= numVariations) return;
+		if (index >= currentFlame.numVariations) return;
 		
-		weights[index] = w;
-		CLManager::writeBuffer(b_weights, 1, &weights[index], index);
+		currentFlame.weights[index] = w;
+		CLManager::writeBuffer(b_weights, 1, &currentFlame.weights[index], index);
 		clearSingleFrame = true;
+	}
+
+	void loadFlameConfig(FlameConfig fc, bool savePrevFlame)
+	{
+		if (savePrevFlame) previousFlames.push(currentFlame);
+
+		currentFlame = fc;
+
+		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, currentFlame.variations);
+		CLManager::writeBuffer(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
+		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, currentFlame.weights);
+		CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
+
+		clearSingleFrame = true;
+	}
+
+	void saveFlameFile()
+	{
+		std::string fileName = "config";
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+		{
+			fileName += "_" + std::to_string(currentFlame.variations[i]);
+		}
+
+		std::vector<nfdu8filteritem_t> filters = {{ "Flame config", "flame" }};
+		std::string fileDir = FileDialog::saveDialog(fileName, filters);
+		if (fileDir == "")
+		{
+			//user closed the file dialog
+			return;
+		}
+
+		std::ofstream fileStream(fileDir);
+		if (!fileStream.is_open())
+		{
+			std::cout << "Failed to save flame config to file: " << fileDir << std::endl;
+			return;
+		}
+
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+		{
+			fileStream <<
+				std::to_string(currentFlame.variations[i]) << "," <<
+				std::to_string(currentFlame.colours[i * 3]) << "," <<
+				std::to_string(currentFlame.colours[i * 3 + 1]) << "," <<
+				std::to_string(currentFlame.colours[i * 3 + 2]) << "," <<
+				std::to_string(currentFlame.weights[i]) <<
+				std::endl;
+		}
+	}
+
+	void loadFlameFile()
+	{
+		auto printErrInvalidData = []() {
+			std::cout << "Flame config file contains invalid data, loading cancelled" << std::endl;
+		};
+
+		auto checkVarNum = [&](const std::string& val, uint32_t* dest) {
+			int varNum;
+			try
+			{
+				varNum = std::stoi(val);
+			}
+			catch (std::invalid_argument e)
+			{
+				printErrInvalidData();
+				return false;
+			}
+
+			bool varNumValid = false;
+			for (uint32_t validVarNum : VALID_VARIATIONS)
+			{
+				if (varNum == validVarNum)
+				{
+					varNumValid = true;
+					break;
+				}
+			}
+
+			if (!varNumValid)
+			{
+				printErrInvalidData();
+				return false;
+			}
+
+			*dest = varNum;
+			return true;
+		};
+
+		auto checkValueFloat = [&](const std::string& val, float min, float max, float* dest) {
+			float v;
+			try
+			{
+				v = std::stof(val);
+			}
+			catch (std::invalid_argument e)
+			{
+				printErrInvalidData();
+				return false;
+			}
+
+			if (v < min || v > max)
+			{
+				printErrInvalidData();
+				return false;
+			}
+
+			*dest = v;
+			return true;
+		};
+
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
+		std::string fileDir = FileDialog::openDialog(filters);
+		if (fileDir == "")
+		{
+			//user closed the file dialog
+			return;
+		}
+
+		std::ifstream fileStream(fileDir);
+		if (!fileStream.is_open())
+		{
+			std::cout << "Failed to access flame config file: " << fileDir << std::endl;
+			return;
+		}
+
+
+		FlameConfig newFlameConfig{ 0 };
+		std::string line;
+		std::vector<std::string> lines;
+		while (std::getline(fileStream, line))
+		{
+			lines.push_back(line);
+		}
+
+		if (lines.size() == 0)
+		{
+			//file is empty, interpret as wanting to have no variations
+			loadFlameConfig(newFlameConfig);
+			return;
+		}
+
+		newFlameConfig.numVariations = lines.size();
+		for (uint32_t i = 0; i < lines.size(); i++)
+		{
+			line = lines[i];
+			std::stringstream ssline(line);
+			std::vector<std::string> values;
+			std::string val;
+			while (std::getline(ssline, val, ','))
+			{
+				values.push_back(val);
+			}
+
+			if (values.size() != 5) //variation number, colour L, colour C, colour h, weight
+			{
+				std::cout << "Flame config file does not match expected format, loading cancelled" << std::endl;
+				return;
+			}
+
+			if (!checkVarNum(values[0], &newFlameConfig.variations[i])) return;
+			if (!checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colours[i * 3])) return;
+			if (!checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 1])) return;
+			if (!checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 2])) return;
+			if (!checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) return;
+		}
+
+		loadFlameConfig(newFlameConfig);
 	}
 
 	void createGUI()
@@ -357,10 +513,10 @@ namespace ifs
 		ImGui::Begin("IFS", NULL);
 		ImGui::SeparatorText("Settings");
 
-		int temp = numPreviewSamples;
-		if (ImGui::InputInt("Samples per frame", &temp, 10000, 100000))
+		int temp = numPreviewSamples / 1000;
+		if (ImGui::InputInt("Samples per frame (thousand)", &temp, 10, 100))
 		{
-			setNumPreviewSamples(std::max(temp, 0));
+			setNumPreviewSamples(std::max(temp * 1000, 0));
 		}
 
 		temp = initialIterations;
@@ -376,7 +532,7 @@ namespace ifs
 		}
 
 		float g = gamma;
-		if (ImGui::DragFloat("Gamma", &g, 0.01f, 0.00001f, 10.0f))
+		if (ImGui::DragFloat("Gamma", &g, 0.01f, 0.01f, 10.0f))
 		{
 			setGamma(g);
 		}
@@ -406,17 +562,83 @@ namespace ifs
 
 		IMGUI_SPACER
 
+		if (ImGui::Button("Save flame config"))
+		{
+			saveFlameFile();
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("Load flame config"))
+		{
+			loadFlameFile();
+		}
+
+		if (previousFlames.size() > 0)
+		{
+			ImGui::SameLine();
+
+			if (ImGui::Button("Previous flame"))
+			{
+				loadFlameConfig(previousFlames.top(), false);
+				previousFlames.pop();
+			}
+		}
+
+		IMGUI_SPACER
+
 		ImGui::SeparatorText("Variations");
 
-		for (uint32_t i = 0; i < numVariations; i++)
+		if (currentFlame.numVariations > 0)
+		{
+			if (ImGui::Button("Randomise variations"))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationNum(i, VALID_VARIATIONS[randomVariationNum()]);
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Randomise colours"))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					glm::vec3 rgb = randomOKLChtoRGB();
+					setVariationColour(i, rgb);
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Randomise weights"))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationWeight(i, randomFloat());
+				}
+			}
+
+			ImGui::Separator();
+		}
+
+
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
 			ImGui::PushID(i);
 
-			if (ImGui::BeginCombo("Variation", std::to_string(variations[i]).c_str()))
+			if (ImGui::BeginCombo("Variation", std::to_string(currentFlame.variations[i]).c_str()))
 			{
 				for (uint32_t j = 0; j < NUM_VALID_VARIATIONS; j++)
 				{
-					bool is_selected = variations[i] == VALID_VARIATIONS[j];
+					bool is_selected = currentFlame.variations[i] == VALID_VARIATIONS[j];
 					if (ImGui::Selectable(std::to_string(VALID_VARIATIONS[j]).c_str(), is_selected))
 					{
 						setVariationNum(i, VALID_VARIATIONS[j]);
@@ -429,31 +651,13 @@ namespace ifs
 				ImGui::EndCombo();
 			}
 
-			//can't use sliderfloat3 as each value has a different range
-			ImGui::PushItemWidth(90.0f);
-			if (ImGui::SliderFloat("##L", &coloursLCh[i * 3], 0.0f, 1.0f))
+			if (ImGui::ColorEdit3("Colour", &currentFlame.colours[i * 3]))
 			{
-				coloursLCh[i * 3] = glm::clamp(coloursLCh[i * 3], 0.0f, 1.0f);
-				setVariationColour(i, coloursLCh[i * 3], coloursLCh[i * 3 + 1], coloursLCh[i * 3 + 2]);
+				glm::vec3 col = { currentFlame.colours[i * 3], currentFlame.colours[i * 3 + 1], currentFlame.colours[i * 3 + 2] };
+				setVariationColour(i, col);
 			}
-			ImGui::SameLine();
-			if (ImGui::SliderFloat("##C", &coloursLCh[i * 3 + 1], 0.0f, 0.5f))
-			{
-				coloursLCh[i * 3 + 1] = glm::clamp(coloursLCh[i * 3 + 1], 0.0f, 1.0f);
-				setVariationColour(i, coloursLCh[i * 3], coloursLCh[i * 3 + 1], coloursLCh[i * 3 + 2]);
-			}
-			ImGui::SameLine();
-			if (ImGui::SliderFloat("L C h", &coloursLCh[i * 3 + 2], 0.0f, 2.0f * PI))
-			{
-				coloursLCh[i * 3 + 2] = glm::clamp(coloursLCh[i * 3 + 2], 0.0f, 2.0f * PI);
-				setVariationColour(i, coloursLCh[i * 3], coloursLCh[i * 3 + 1], coloursLCh[i * 3 + 2]);
-			}
-			ImGui::PopItemWidth();
-			ImGui::SameLine();
-			ImVec4 col = ImVec4(coloursRGB[i * 3], coloursRGB[i * 3 + 1], coloursRGB[i * 3 + 2], 1.0f);
-			ImGui::ColorButton("Colour", col);
 
-			float w = weights[i];
+			float w = currentFlame.weights[i];
 			if (ImGui::SliderFloat("Weight", &w, 0.0f, 1.0f))
 			{
 				setVariationWeight(i, w);
@@ -471,40 +675,11 @@ namespace ifs
 			ImGui::PopID();
 		}
 
-		if (numVariations < MAX_VARIATIONS)
+		if (currentFlame.numVariations < MAX_VARIATIONS)
 		{
 			if (ImGui::Button("Add variation"))
 			{
 				addDefaultVariation();
-			}
-		}
-
-		if (ImGui::Button("Randomise variations"))
-		{
-			for (uint32_t i = 0; i < numVariations; i++)
-			{
-				setVariationNum(i, VALID_VARIATIONS[randomVariationIndex()]);
-			}
-		}
-
-		ImGui::SameLine();
-
-		if (ImGui::Button("Randomise colours"))
-		{
-			for (uint32_t i = 0; i < numVariations; i++)
-			{
-				float* colour = randomOKLCh();
-				setVariationColour(i, colour[0], colour[1], colour[2]);
-			}
-		}
-
-		ImGui::SameLine();
-
-		if (ImGui::Button("Randomise weights"))
-		{
-			for (uint32_t i = 0; i < numVariations; i++)
-			{
-				setVariationWeight(i, randomFloat());
 			}
 		}
 
@@ -521,11 +696,11 @@ namespace ifs
 			renderTexHeight = res[1];
 		}
 
-		int n = numRenderSamples;
-		if (ImGui::InputInt("Number of samples", &n, 1000000, 10000000, renderMatchPreviewSampleNum ? ImGuiInputTextFlags_ReadOnly : 0))
+		int n = numRenderSamples / 1000;
+		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10, renderMatchPreviewSampleNum ? ImGuiInputTextFlags_ReadOnly : 0))
 		{
 			if (n < 0) n = 0;
-			numRenderSamples = n;
+			numRenderSamples = n * 1000;
 		}
 
 		if (ImGui::Checkbox("Match current preview sample num", &renderMatchPreviewSampleNum) && renderMatchPreviewSampleNum)
@@ -553,16 +728,16 @@ namespace ifs
 
 		for (uint32_t i = 0; i < MAX_VARIATIONS; i++)
 		{
-			variations[i] = 0;
-			coloursRGB[i * 3 + 0] = 0.0f;
-			coloursRGB[i * 3 + 1] = 0.0f;
-			coloursRGB[i * 3 + 2] = 0.0f;
-			weights[i] = 0.0f;
+			currentFlame.variations[i] = 0;
+			currentFlame.colours[i * 3 + 0] = 0.0f;
+			currentFlame.colours[i * 3 + 1] = 0.0f;
+			currentFlame.colours[i * 3 + 2] = 0.0f;
+			currentFlame.weights[i] = 0.0f;
 		}
 
-		CLManager::createBuffer<uint32_t>(b_variations, MAX_VARIATIONS, variations);
-		CLManager::createBuffer<float>(b_colours, MAX_VARIATIONS * 3, coloursRGB);
-		CLManager::createBuffer<float>(b_weights, MAX_VARIATIONS, weights);
+		CLManager::createBuffer<uint32_t>(b_variations, MAX_VARIATIONS, currentFlame.variations);
+		CLManager::createBuffer<float>(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
+		CLManager::createBuffer<float>(b_weights, MAX_VARIATIONS, currentFlame.weights);
 
 		CLManager::createKernel(k_produceSamples);
 		CLManager::createKernel(k_renderPostProcess);
@@ -581,7 +756,7 @@ namespace ifs
 		setGamma(2.2f);
 		setDarkness(2.0f);
 
-		numRenderSamples = 1e6;
+		numRenderSamples = 1000000;
 		totalPreviewSamples = 0;
 		renderTexWidth = 1920;
 		renderTexHeight = 1080;
@@ -612,7 +787,7 @@ namespace ifs
 			clearSingleFrame = false;
 		}
 
-		if (!paused && numVariations > 0)
+		if (!paused && currentFlame.numVariations > 0)
 		{
 			acquireGLObjects();
 
@@ -653,13 +828,14 @@ namespace ifs
 		//render to an image file
 
 		//set save path
-		std::string fileName = "flame";
-		for (uint32_t i = 0; i < numVariations; i++)
+		std::string fileName = std::to_string(numRenderSamples);
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
-			fileName += "_" + std::to_string(variations[i]);
+			fileName += "_" + std::to_string(currentFlame.variations[i]);
 		}
 
-		std::string renderOutputPath = FileDialog::saveDialog(fileName);
+		std::vector<nfdu8filteritem_t> filters = { { "PNG Image", "png" } };
+		std::string renderOutputPath = FileDialog::saveDialog(fileName, filters);
 		if (renderOutputPath == "")
 		{
 			//pressed cancel, so don't render
@@ -726,30 +902,24 @@ namespace ifs
 		return (float)rand() / RAND_MAX;
 	}
 
-	uint32_t randomVariationIndex()
+	uint32_t randomVariationNum()
 	{
 		//don't want variation 0
 		return (uint32_t)(1 + randomFloat() * (NUM_VALID_VARIATIONS - 1));
 	}
 
-	float* randomOKLCh()
+	glm::vec3 randomOKLChtoRGB()
 	{
+		//https://bottosson.github.io/posts/oklab/
+
 		//generate a random "sensible" colour in LCh space
 		float L = 0.3f + randomFloat() * 0.5f;
 		float C = randomFloat() * 0.5f;
 		float h = randomFloat() * 2.0f * PI;
 
-		float okLCh[3] = { L, C, h };
-		return okLCh;
-	}
-
-	float* OKLChtoRGB(float okLCh[3])
-	{
-		//https://bottosson.github.io/posts/oklab/
-
-		float a = okLCh[1] * cos(okLCh[2]);
-		float b = okLCh[1] * sin(okLCh[2]);
-		float okLAB[3] = { okLCh[0], a, b };
+		float a = C * cos(h);
+		float b = C * sin(h);
+		float okLAB[3] = { L, a, b };
 
 		float l_ = okLAB[0] + 0.3963377774f * okLAB[1] + 0.2158037573f * okLAB[2];
 		float m_ = okLAB[0] - 0.1055613458f * okLAB[1] - 0.0638541728f * okLAB[2];
@@ -759,16 +929,13 @@ namespace ifs
 		float m = m_ * m_ * m_;
 		float s = s_ * s_ * s_;
 
-		float rgb[3] = {
+		glm::vec3 rgb = {
 			+4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
 			-1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
 			-0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s,
 		};
 
-		rgb[0] = glm::clamp(rgb[0], 0.0f, 1.0f);
-		rgb[1] = glm::clamp(rgb[1], 0.0f, 1.0f);
-		rgb[2] = glm::clamp(rgb[2], 0.0f, 1.0f);
-
+		rgb = glm::clamp(rgb, 0.0f, 1.0f);
 		return rgb;
 	}
 }

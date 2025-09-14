@@ -1,10 +1,14 @@
 #ifndef IFS_H
 #define IFS_H
 
+#include <string>
+
 #include "glm/glm.hpp"
 
 namespace ifs
 {
+	struct FlameConfig;
+
 	void acquireGLObjects();
 	void releaseGLObjects();
 	
@@ -25,8 +29,12 @@ namespace ifs
 	void addRandomVariation();
 	void removeVariation(uint32_t index);
 	void setVariationNum(uint32_t index, uint32_t variation);
-	void setVariationColour(uint32_t index, float L, float C, float h);
+	void setVariationColour(uint32_t index, glm::vec3 rgb);
 	void setVariationWeight(uint32_t index, float w);
+	void loadFlameConfig(FlameConfig fc, bool savePrevFlame=true);
+	void saveFlameFile();
+	void loadFlameFile();
+
 
 	void createGUI();
 	
