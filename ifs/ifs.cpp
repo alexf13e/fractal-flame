@@ -64,7 +64,7 @@ namespace ifs
 
 		uint32_t frameNum = 0;
 
-		uint32_t VALID_VARIATIONS[] = {
+		constexpr uint32_t VALID_VARIATIONS[] = {
 			0,
 			1,
 			2,
@@ -80,14 +80,21 @@ namespace ifs
 			12,
 			13,
 			14,
+			16,
 			18,
 			19,
 			20,
+			27,
 			28,
 			29,
+			31,
+			34,
+			35,
 			42,
+			43,
 			48
 		};
+		constexpr uint32_t NUM_VALID_VARIATIONS = sizeof(VALID_VARIATIONS) / sizeof(uint32_t);
 	}
 
 	void acquireGLObjects()
@@ -297,7 +304,7 @@ namespace ifs
 		if (index >= numVariations) return;
 
 		bool valid = false;
-		for (uint32_t i = 0; i < IM_ARRAYSIZE(VALID_VARIATIONS); i++)
+		for (uint32_t i = 0; i < NUM_VALID_VARIATIONS; i++)
 		{
 			if (variation == VALID_VARIATIONS[i])
 			{
@@ -407,7 +414,7 @@ namespace ifs
 
 			if (ImGui::BeginCombo("Variation", std::to_string(variations[i]).c_str()))
 			{
-				for (uint32_t j = 0; j < IM_ARRAYSIZE(VALID_VARIATIONS); j++)
+				for (uint32_t j = 0; j < NUM_VALID_VARIATIONS; j++)
 				{
 					bool is_selected = variations[i] == VALID_VARIATIONS[j];
 					if (ImGui::Selectable(std::to_string(VALID_VARIATIONS[j]).c_str(), is_selected))
@@ -722,7 +729,7 @@ namespace ifs
 	uint32_t randomVariationIndex()
 	{
 		//don't want variation 0
-		return (uint32_t)(1 + randomFloat() * (MAX_VARIATIONS - 1));
+		return (uint32_t)(1 + randomFloat() * (NUM_VALID_VARIATIONS - 1));
 	}
 
 	float* randomOKLCh()

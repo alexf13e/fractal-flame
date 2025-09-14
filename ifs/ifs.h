@@ -38,9 +38,8 @@ namespace ifs
 	void destroy();
 
 	float randomFloat();
-	uint32_t randomVariationIndex();
-	float* randomOKLCh();
-	float* OKLChtoRGB(float oklab[3]);
+	uint32_t randomVariationNum();
+	glm::vec3 randomOKLChtoRGB();
 
 }
 
