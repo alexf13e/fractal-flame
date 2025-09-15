@@ -28,13 +28,12 @@ The image below shows an example set of variations after starting the program, a
 ### Variations
 This is this list of variations currently being applied to the sample points.
 * Randomise [value] - randomises this value for each variation in the list. Useful for searching for nice shapes and colour schemes
-* Variation - the numbers refer to the list found at the end of this document: https://flam3.com/flame_draves.pdf
+* Variation - these refer to the list found at the end of this document: https://flam3.com/flame_draves.pdf
 * Colour - the colour associated with the variation
 * Weight - affects the probability of this variation being chosen by a sample point. Variations with equal weight have equal probability of being chosen. The chance of a variation being chosen is its weight divided by the sum of all weights
 * Remove - remove this variation from the list
 * Add variation - adds a variation with default settings
-<img width="469" height="1069" alt="image" src="https://github.com/user-attachments/assets/8af1c24d-ebff-4e1b-96db-f0c72f891a28" />
-
+<img width="464" height="1068" alt="image" src="https://github.com/user-attachments/assets/87610fd9-46e6-4774-b10a-3a7dfd78864e" />
 
 
 ### Render
