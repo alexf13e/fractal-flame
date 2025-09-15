@@ -540,8 +540,9 @@ namespace ifs
 
 	void createGUI()
 	{
-#define IMGUI_SPACER ImGui::Dummy(ImVec2(0.0f, 10.0f));
-#define CUSTOM_UI_ITEM_WIDTH 200.0f
+		auto IMGUI_SPACER = []() { ImGui::Dummy(ImVec2(0.0f, 10.0f)); };
+		constexpr float CUSTOM_UI_ITEM_WIDTH = 200.0f;
+		constexpr float UI_VARIATION_SETTINGS_WIDTH = 300.0f;
 
 		ImGui::Begin("Fractal Flame IFS", NULL);
 		ImGui::SeparatorText("Settings");
@@ -595,7 +596,7 @@ namespace ifs
 			paused = !paused;
 		}
 
-		IMGUI_SPACER
+		IMGUI_SPACER();
 
 		if (ImGui::Button("Save flame config"))
 		{
@@ -620,7 +621,7 @@ namespace ifs
 			}
 		}
 
-		IMGUI_SPACER
+		IMGUI_SPACER();
 
 		ImGui::SeparatorText("Variations");
 
@@ -666,7 +667,7 @@ namespace ifs
 			ImGui::Separator();
 		}
 
-		ImGui::PushItemWidth(CUSTOM_UI_ITEM_WIDTH);
+		ImGui::PushItemWidth(UI_VARIATION_SETTINGS_WIDTH);
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
 			ImGui::PushID(i);
@@ -705,7 +706,7 @@ namespace ifs
 				removeVariation(i);
 			}
 
-			IMGUI_SPACER
+			IMGUI_SPACER();
 
 			ImGui::Separator();
 
