@@ -51,6 +51,7 @@ namespace ifs
 		Camera2D cam;
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
+		bool renderTexSizeMatchPreview;
 		bool renderTransparency;
 
 		uint32_t numPreviewSamples;
@@ -62,7 +63,8 @@ namespace ifs
 		bool clearEveryFrame;
 		bool clearSingleFrame;
 		bool paused;
-		bool renderMatchPreviewSampleNum;
+
+		bool renderSampleNumMatchPreview;
 
 		float gamma;
 		float darkness;
@@ -254,10 +256,10 @@ namespace ifs
 		CLManager::setKernelParamValue(k_renderPostProcess, 2, gamma);
 	}
 
-	void setDarkness(float b)
+	void setDarkness(float d)
 	{
 		//nicer control than setting "brightness" directly. the pixel is multiplied by brightness before gamma
-		darkness = b;
+		darkness = d;
 		glUseProgram(shFullScreenTri.getID());
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "brightness"), 1.0f / darkness);
 		glUseProgram(0);
@@ -730,8 +732,19 @@ namespace ifs
 		ImGui::Begin("Render");
 		ImGui::PushItemWidth(150.0f);
 		
-		int res[2] = { renderTexWidth, renderTexHeight };
-		if (ImGui::InputInt2("Render resolution", res))
+		int res[2];
+		if (renderTexSizeMatchPreview)
+		{
+			res[0] = previewTexWidth;
+			res[1] = previewTexHeight;
+		}
+		else
+		{
+			res[0] = renderTexWidth;
+			res[1] = renderTexHeight;
+		}
+
+		if (ImGui::InputInt2("Render resolution", res, renderTexSizeMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
 		{
 			if (res[0] < 1) res[0] = 1;
 			if (res[1] < 1) res[1] = 1;
@@ -739,8 +752,10 @@ namespace ifs
 			renderTexHeight = res[1];
 		}
 
+		ImGui::Checkbox("Match preview size", &renderTexSizeMatchPreview);
+
 		int n = numRenderSamples / 1000;
-		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10, renderMatchPreviewSampleNum ? ImGuiInputTextFlags_ReadOnly : 0))
+		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10, renderSampleNumMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
 		{
 			if (n < 0) n = 0;
 			numRenderSamples = n * 1000;
@@ -748,7 +763,7 @@ namespace ifs
 
 		ImGui::PopItemWidth();
 
-		if (ImGui::Checkbox("Match current preview sample num", &renderMatchPreviewSampleNum) && renderMatchPreviewSampleNum)
+		if (ImGui::Checkbox("Match current preview sample num", &renderSampleNumMatchPreview) && renderSampleNumMatchPreview)
 		{
 			numRenderSamples = totalPreviewSamples;
 		}
@@ -803,10 +818,11 @@ namespace ifs
 
 		numRenderSamples = 1000000;
 		totalPreviewSamples = 0;
-		renderTexWidth = 1920;
-		renderTexHeight = 1080;
+		renderTexWidth = 3840;
+		renderTexHeight = 2160;
 		renderTransparency = false;
-		renderMatchPreviewSampleNum = true;
+		renderSampleNumMatchPreview = true;
+		renderTexSizeMatchPreview = true;
 
 		clearEveryFrame = false;
 		clearSingleFrame = false;
@@ -846,7 +862,7 @@ namespace ifs
 		{
 			frameNum++;
 			totalPreviewSamples += numPreviewSamples;
-			if (renderMatchPreviewSampleNum) numRenderSamples = totalPreviewSamples;
+			if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
 		}
 	}
 
@@ -855,7 +871,7 @@ namespace ifs
 		//clear the preview buffer and start from 0 samples
 		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_RGBA32F, GL_RGBA, GL_FLOAT, NULL);
 		totalPreviewSamples = 0;
-		if (renderMatchPreviewSampleNum) numRenderSamples = totalPreviewSamples;
+		if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
 	}
 
 	void draw()
