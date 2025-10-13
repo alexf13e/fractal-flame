@@ -98,6 +98,7 @@ void onWindowResize(GLFWwindow* w, int width, int height)
 
 	glViewport(0, 0, width, height);
 	ifs::setPreviewTexSize(width, height);
+	ifs::clearSamples();
 }
 
 bool init()
