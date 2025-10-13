@@ -36,14 +36,7 @@ void Camera2D::reset()
 {
 	position = glm::vec2(0.0f);
 	zoom = 0.5f;
-	if (ar < 1.0f)
-	{
-		view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
-	}
-	else
-	{
-		view = glm::vec2(1.0f / zoom, 1.0f / zoom / ar);
-	}
+	view = calculateView(ar);
 	updateViewMatrix();
 }
 
@@ -53,16 +46,21 @@ void Camera2D::updatePosition(const glm::vec2& deltaPos)
 	updateViewMatrix();
 }
 
-void Camera2D::updateView(const float deltaZoom)
+glm::vec2 Camera2D::calculateView(float aspectRatio)
 {
-	zoom *= deltaZoom;
-	if (ar < 1.0f)
+	if (aspectRatio > 1.0f)
 	{
-		view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
+		return glm::vec2(aspectRatio, 1.0f) / zoom;
 	}
 	else
 	{
-		view = glm::vec2(1.0f / zoom, 1.0f / zoom / ar);
+		return glm::vec2(1.0f, 1.0f / aspectRatio) / zoom;
 	}
+}
+
+void Camera2D::updateView(const float deltaZoom)
+{
+	zoom *= deltaZoom;
+	view = calculateView(ar);
 	updateViewMatrix();
 }

@@ -26,6 +26,7 @@ public:
 	void reset();
 
 	void updatePosition(const glm::vec2& deltaPos);
+	glm::vec2 calculateView(float aspectRatio);
 	void updateView(const float deltaZoom);
 };
 
