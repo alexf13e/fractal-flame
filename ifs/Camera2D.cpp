@@ -36,7 +36,14 @@ void Camera2D::reset()
 {
 	position = glm::vec2(0.0f);
 	zoom = 0.5f;
-	view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
+	if (ar < 1.0f)
+	{
+		view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
+	}
+	else
+	{
+		view = glm::vec2(1.0f / zoom, 1.0f / zoom / ar);
+	}
 	updateViewMatrix();
 }
 
