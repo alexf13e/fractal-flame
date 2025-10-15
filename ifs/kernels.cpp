@@ -235,9 +235,8 @@ void v12(float2* p)
 	float p1 = cos(theta - r);
 	p0 *= p0 * p0;
 	p1 *= p1 * p1;
-	p->x = p0 + p1;
-	p->y = p0 - p1;
-	*p *= r;
+	p->x = (p0 + p1) * r;
+	p->y = (p0 - p1) * r;
 }
 
 void v13(float2* p, uint* seed)
@@ -302,27 +301,24 @@ void v31(float2* p, uint* seed)
 {
 	float psi1 = RNG(seed);
 	float psi2 = RNG(seed);
-	p->x = p->x * cos(2 * PI * psi2);
-	p->y = p->y * sin(2 * PI * psi2);
-	*p *= psi1;
+	p->x *= cos(TWO_PI * psi2) * psi1;
+	p->y *= sin(TWO_PI * psi2) * psi1;
 }
 
 void v34(float2* p, uint* seed)
 {
 	float psi1 = RNG(seed);
 	float psi2 = RNG(seed);
-	p->x = cos(2 * PI * psi2);
-	p->y = sin(2 * PI * psi2);
-	*p *= psi1;
+	p->x = cos(TWO_PI * psi2) * psi1;
+	p->y = sin(TWO_PI * psi2) * psi1;
 }
 
 void v35(float2* p, uint* seed)
 {
 	float psik = RNG(seed) + RNG(seed) + RNG(seed) + RNG(seed) - 2.0f;
 	float psi5 = RNG(seed);
-	p->x = cos(2 * PI * psi5);
-	p->y = sin(2 * PI * psi5);
-	*p *= psik;
+	p->x = cos(TWO_PI * psi5) * psik;
+	p->y = sin(TWO_PI * psi5) * psik;
 }
 
 void v42(float2* p)
@@ -360,7 +356,8 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 		r++;
 	}
 
-	//*c = 0.5f * (*c + (float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]));
+	if (r >= numVariations) r = 0; //failed to find a variation for the random value, something likely wrong elsewhere
+
 	//blend colours in lab, but accumulate in srgb
 	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]))));
 
@@ -397,7 +394,7 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 );
 
 std::string strPlot = KERNEL_R_STRING(
-	void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight)
+void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight)
 {
 	//draw the sample point to the buffer
 
@@ -413,6 +410,7 @@ std::string strPlot = KERNEL_R_STRING(
 	if (pixelX < 0 || pixelX >= texWidth || pixelY < 0 || pixelY >= texHeight) return;
 
 	//draw to buffer by accumulating pixel values
+	//use of atomics here can cause big slow down if lots of points end up in the same pixel
 	uint pixelIndex = pixelY * texWidth + pixelX;
 	atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], c.x);
 	atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], c.y);
@@ -448,9 +446,10 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 		}
 	}
 
+	barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
+
 	weightTotal = lc_weightThresholds[numVariations - 1];
 
-	barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
 	uint seed = i + frameNum * numSamples;
 	RNG(&seed); //randomise the seed once before using
@@ -481,12 +480,10 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 }
 );
 
-std::string strRenderPostProcess = KERNEL_R_STRING(
-kernel void renderPostProcess(global float4* renderTexture, global uchar4* processedRenderTexture, float gamma,
+std::string strPostProcess = KERNEL_R_STRING(
+kernel void postProcess(global float4* renderTexture, global float4* processedRenderTexture, float gamma,
 	float brightness, uchar renderTransparency, uint numPixels)
 {
-	//apply post processing (gamma, brightness, float -> byte). this is done in fragment shader for preview.
-
 	uint i = get_global_id(0);
 	if (i >= numPixels) return;
 
@@ -502,11 +499,20 @@ kernel void renderPostProcess(global float4* renderTexture, global uchar4* proce
 	}
 
 	pix = clamp(pix, 0.0f, 1.0f);
-	pix *= 255.0f;
-	uchar4 pixFinal = convert_uchar4(pix);
-	processedRenderTexture[i] = pixFinal;
+	processedRenderTexture[i] = pix;
 }
 );
+
+std::string strFloatToByte = KERNEL_R_STRING(
+kernel void floatToByte(global float4* input, global uchar4* output, uint numPixels)
+{
+	uint i = get_global_id(0);
+	if (i >= numPixels) return;
+
+	output[i] = convert_uchar4(255.0f * input[i]);
+}
+);
+
 
     std::string fullKernelSource =
 		strAtomicAddFloat +
@@ -519,7 +525,8 @@ kernel void renderPostProcess(global float4* renderTexture, global uchar4* proce
 		strF +
 		strPlot +
 		strProduceSamples +
-		strRenderPostProcess;
+		strPostProcess +
+		strFloatToByte;
 	
     return strPreProc + formatKernelString(fullKernelSource);
 }

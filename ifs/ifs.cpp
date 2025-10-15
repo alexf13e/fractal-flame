@@ -1,7 +1,6 @@
 
 #include "ifs.h"
 
-#include <random>
 #include <stack>
 #include <fstream>
 #include <sstream>
@@ -38,20 +37,23 @@ namespace ifs
 		ShaderProgram shFullScreenTri;
 		GLuint vao_fullScreenTri;
 
-		std::string glb_previewTexture = "previewTexture";
+		std::string b_previewTexture = "previewTexture";
+		std::string glb_processedPreviewTexture = "processedPreviewTexture";
 		std::string b_renderTexture = "renderTexture";
-		std::string b_processedRenderTexture = "processedRenderTexture";
+		std::string b_renderTextureBytes = "renderTextureBytes";
 		std::string b_variations = "variations";
 		std::string b_colours = "colours";
 		std::string b_weights = "weights";
 		std::string k_produceSamples = "produceSamples";
-		std::string k_renderPostProcess = "renderPostProcess";
+		std::string k_postProcess = "postProcess";
+		std::string k_floatToByte = "floatToByte";
 		std::vector<cl::Memory> glObjectsToAcquire;
 
 		Camera2D cam;
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
 		bool renderTexSizeMatchPreview;
+		bool renderSampleNumMatchPreview;
 		bool renderTransparency;
 
 		uint32_t numPreviewSamples;
@@ -59,15 +61,13 @@ namespace ifs
 		uint32_t numRenderSamples;
 		uint32_t initialIterations;
 		uint32_t iterations;
+		float gamma;
+		float darkness;
 
 		bool clearEveryFrame;
 		bool clearSingleFrame;
 		bool paused;
-
-		bool renderSampleNumMatchPreview;
-
-		float gamma;
-		float darkness;
+		bool wantsPostProcess;
 
 		FlameConfig currentFlame;
 		std::stack<FlameConfig> previousFlames;
@@ -163,25 +163,31 @@ namespace ifs
 
 		//replace preview buffer
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
-		CLManager::createGLBufferNoVAO<float>(glb_previewTexture, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
+		CLManager::createBuffer<float>(b_previewTexture, numPixels * 4);
+		CLManager::createGLBufferNoVAO<float>(glb_processedPreviewTexture, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
 
 		glUseProgram(shFullScreenTri.getID());
 		//use shader storage buffer as easier to work with between opencl and gl
 		int bufferBlockBinding = 0;
 		int bufferBlockIndex = glGetProgramResourceIndex(shFullScreenTri.getID(), GL_SHADER_STORAGE_BLOCK, "TexOutput");
 		glShaderStorageBlockBinding(shFullScreenTri.getID(), bufferBlockIndex, bufferBlockBinding);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_previewTexture].glBuffer);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_processedPreviewTexture].glBuffer);
 
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texWidth"), previewTexWidth);
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texHeight"), previewTexHeight);
 		glUseProgram(0);
 
-		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_previewTexture].clBuffer);
+		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_processedPreviewTexture].clBuffer);
 
 		//update relevent kernel parameters for resized buffer
-		CLManager::setKernelParamGLBuffer(k_produceSamples, 0, { glb_previewTexture });
+		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture });
 		CLManager::setKernelParamValue(k_produceSamples, 8, previewTexWidth);
 		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
+		
+		CLManager::setKernelRange(k_postProcess, numPixels);
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture });
+		CLManager::setKernelParamGLBuffer(k_postProcess, 1, { glb_processedPreviewTexture });
+		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
 	}
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
@@ -253,7 +259,8 @@ namespace ifs
 		glUseProgram(shFullScreenTri.getID());
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "gamma"), gamma);
 		glUseProgram(0);
-		CLManager::setKernelParamValue(k_renderPostProcess, 2, gamma);
+		CLManager::setKernelParamValue(k_postProcess, 2, gamma);
+		wantsPostProcess = true;
 	}
 
 	void setDarkness(float d)
@@ -263,7 +270,14 @@ namespace ifs
 		glUseProgram(shFullScreenTri.getID());
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "brightness"), 1.0f / darkness);
 		glUseProgram(0);
-		CLManager::setKernelParamValue(k_renderPostProcess, 3, 1.0f / darkness);
+		CLManager::setKernelParamValue(k_postProcess, 3, 1.0f / darkness);
+		wantsPostProcess = true;
+	}
+
+	void setRenderTransparency(bool t)
+	{
+		renderTransparency = t;
+		CLManager::setKernelParamValue(k_postProcess, 4, renderTransparency);
 	}
 
 	void addDefaultVariation()
@@ -732,17 +746,7 @@ namespace ifs
 		ImGui::Begin("Render");
 		ImGui::PushItemWidth(150.0f);
 		
-		int res[2];
-		if (renderTexSizeMatchPreview)
-		{
-			res[0] = previewTexWidth;
-			res[1] = previewTexHeight;
-		}
-		else
-		{
-			res[0] = renderTexWidth;
-			res[1] = renderTexHeight;
-		}
+		int res[2] = { renderTexWidth, renderTexHeight };
 
 		if (ImGui::InputInt2("Render resolution", res, renderTexSizeMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
 		{
@@ -752,7 +756,11 @@ namespace ifs
 			renderTexHeight = res[1];
 		}
 
-		ImGui::Checkbox("Match preview size", &renderTexSizeMatchPreview);
+		if (ImGui::Checkbox("Match preview size", &renderTexSizeMatchPreview) && renderTexSizeMatchPreview)
+		{
+			renderTexWidth = previewTexWidth;
+			renderTexHeight = previewTexHeight;
+		}
 
 		int n = numRenderSamples / 1000;
 		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10, renderSampleNumMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
@@ -768,7 +776,10 @@ namespace ifs
 			numRenderSamples = totalPreviewSamples;
 		}
 
-		ImGui::Checkbox("Transparent background", &renderTransparency);
+		if (ImGui::Checkbox("Transparent background", &renderTransparency))
+		{
+			setRenderTransparency(renderTransparency);
+		}
 
 		if (ImGui::Button("Render"))
 		{
@@ -800,7 +811,8 @@ namespace ifs
 		CLManager::createBuffer<float>(b_weights, MAX_VARIATIONS, currentFlame.weights);
 
 		CLManager::createKernel(k_produceSamples);
-		CLManager::createKernel(k_renderPostProcess);
+		CLManager::createKernel(k_postProcess);
+		CLManager::createKernel(k_floatToByte);
 
 		CLManager::setKernelParamBuffer(k_produceSamples, 1, { b_variations, b_colours, b_weights });
 		CLManager::setKernelParamLocal(k_produceSamples, 12, MAX_VARIATIONS * sizeof(uint32_t));
@@ -810,24 +822,37 @@ namespace ifs
 		cam.init(previewTexWidth, previewTexHeight, glm::vec2(0.0f));
 
 		setPreviewTexSize(tw, th); //preview texture created here
+		
+		//default values for options
+		renderSampleNumMatchPreview = true;
+		renderTexSizeMatchPreview = true;
+		if (renderTexSizeMatchPreview)
+		{
+			renderTexWidth = previewTexWidth;
+			renderTexHeight = previewTexHeight;
+
+		}
+		else
+		{
+			renderTexWidth = 3840;
+			renderTexHeight = 2160;
+		}
+
+		setRenderTransparency(false);
+
 		setNumPreviewSamples(10000);
+		totalPreviewSamples = 0;
+		numRenderSamples = 1000000;
 		setInitialIterations(20);
 		setIterations(5);
 		setGamma(2.2f);
 		setDarkness(2.0f);
 
-		numRenderSamples = 1000000;
-		totalPreviewSamples = 0;
-		renderTexWidth = 3840;
-		renderTexHeight = 2160;
-		renderTransparency = false;
-		renderSampleNumMatchPreview = true;
-		renderTexSizeMatchPreview = true;
-
 		clearEveryFrame = false;
-		clearSingleFrame = false;
 		paused = false;
+		wantsPostProcess = false;
 
+		//start the program with 3 random variations
 		addRandomVariation();
 		addRandomVariation();
 		addRandomVariation();
@@ -850,12 +875,18 @@ namespace ifs
 
 		if (!paused && currentFlame.numVariations > 0)
 		{
-			acquireGLObjects();
-
 			CLManager::setKernelParamValue(k_produceSamples, 10, frameNum);
 			CLManager::runKernel(k_produceSamples);
-			
+
+			wantsPostProcess = true;
+		}
+
+		if (wantsPostProcess)
+		{
+			acquireGLObjects();
+			CLManager::runKernel(k_postProcess);
 			releaseGLObjects();
+			wantsPostProcess = false;
 		}
 
 		if (!paused)
@@ -869,8 +900,9 @@ namespace ifs
 	void clearSamples()
 	{
 		//clear the preview buffer and start from 0 samples
-		glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_RGBA32F, GL_RGBA, GL_FLOAT, NULL);
+		CLManager::fillBuffer(b_previewTexture, previewTexWidth * previewTexHeight * 4, 0);
 		totalPreviewSamples = 0;
+		frameNum = 0;
 		if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
 	}
 
@@ -907,7 +939,7 @@ namespace ifs
 
 		uint32_t numPixels = renderTexWidth * renderTexHeight;
 		CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
-		CLManager::createBuffer<uint8_t>(b_processedRenderTexture, numPixels * 4);
+		CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
 		
 
 		//produce the samples on the texture
@@ -917,25 +949,29 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 		CLManager::setKernelParamValue(k_produceSamples, 8, renderTexWidth);
 		CLManager::setKernelParamValue(k_produceSamples, 9, renderTexHeight);
+		CLManager::setKernelParamValue(k_produceSamples, 10, 0);
 		CLManager::setKernelParamValue(k_produceSamples, 11, numRenderSamples);
 		CLManager::runKernel(k_produceSamples);
+		
 
 		std::cout << "Applying post process..." << std::endl;
 
 		//apply brightness and gamma and convert from float to byte
-		CLManager::setKernelRange(k_renderPostProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_renderPostProcess, 0, { b_renderTexture, b_processedRenderTexture });
-		CLManager::setKernelParamValue(k_renderPostProcess, 2, gamma);
-		CLManager::setKernelParamValue(k_renderPostProcess, 3, 1.0f / darkness);
-		CLManager::setKernelParamValue(k_renderPostProcess, 4, renderTransparency);
-		CLManager::setKernelParamValue(k_renderPostProcess, 5, numPixels);
-		CLManager::runKernel(k_renderPostProcess);
+		CLManager::setKernelRange(k_postProcess, numPixels);
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_renderTexture });
+		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
+		CLManager::runKernel(k_postProcess);
+
+		CLManager::setKernelRange(k_floatToByte, numPixels);
+		CLManager::setKernelParamBuffer(k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
+		CLManager::setKernelParamValue(k_floatToByte, 2, numPixels);
+		CLManager::runKernel(k_floatToByte);
 
 		std::cout << "Saving to " << renderOutputPath << std::endl;
 
 		//save the texture to an image
 		uint8_t* texture = new uint8_t[numPixels * 4];
-		CLManager::readBuffer(b_processedRenderTexture, numPixels * 4, texture);
+		CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, texture);
 		stbi_write_png_compression_level = 1;
 		stbi_flip_vertically_on_write(1);
 		stbi_write_png(renderOutputPath.c_str(), renderTexWidth, renderTexHeight, 4, texture, renderTexWidth * 4 * sizeof(uint8_t));
@@ -945,12 +981,19 @@ namespace ifs
 
 		//put preview kernel parameters back
 		CLManager::setKernelRange(k_produceSamples, numPreviewSamples);
-		CLManager::setKernelParamGLBuffer(k_produceSamples, 0, { glb_previewTexture });
+		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture });
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
 		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 		CLManager::setKernelParamValue(k_produceSamples, 8, previewTexWidth);
 		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
+		CLManager::setKernelParamValue(k_produceSamples, 10, frameNum);
 		CLManager::setKernelParamValue(k_produceSamples, 11, numPreviewSamples);
+
+		numPixels = previewTexWidth * previewTexHeight;
+		CLManager::setKernelRange(k_postProcess, numPixels);
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture });
+		CLManager::setKernelParamGLBuffer(k_postProcess, 1, { glb_processedPreviewTexture });
+		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
 	}
 
 	void destroy()

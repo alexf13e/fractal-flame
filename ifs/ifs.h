@@ -1,8 +1,6 @@
 #ifndef IFS_H
 #define IFS_H
 
-#include <string>
-
 #include "glm/glm.hpp"
 
 namespace ifs

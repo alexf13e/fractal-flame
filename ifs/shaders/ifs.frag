@@ -21,18 +21,5 @@ void main()
     uint x = int(texCoord.x * texWidth);
     uint y = int(texCoord.y * texHeight);
     uint i = y * texWidth + x;
-
-    vec4 pix = texOutput[i];
-
-    float alphaScale = log2(pix.w) * 0.301 / pix.w;
-    pix = brightness * alphaScale * pix;
-    pix = vec4(pow(pix.xyz, vec3(1.0f / gamma)), pix.w);
-    outColour = pix;
-
-    //uint pix = texOutput[i];
-    //float r = pix & 0xFF;
-    //float g = (pix >> 8) & 0xFF;
-    //float b = (pix >> 16) & 0xFF;
-    //float a = (pix >> 24) & 0xFF;
-    //outColour = vec4(r, g, b, a) / 255.0f;
+    outColour = texOutput[i];
 }
