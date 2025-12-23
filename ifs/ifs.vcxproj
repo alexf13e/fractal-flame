@@ -71,14 +71,14 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\_headers\nfd;$(SolutionDir)..\_headers\imgui;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\_lib;$(LibraryPath)</LibraryPath>
-    <SourcePath>$(SolutionDir)..\_src\imgui;$(SourcePath)</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\Alex\Documents\Programming\cpp\_headers\nfd;C:\Users\Alex\Documents\Programming\cpp\_headers\imgui;C:\Users\Alex\Documents\Programming\cpp\_headers;C:\Users\Alex\Documents\Programming\opencl\_headers;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\_lib;C:\Users\Alex\Documents\Programming\cpp\_lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>C:\Users\Alex\Documents\Programming\cpp\_src\imgui;$(SourcePath)</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\_headers\nfd;$(SolutionDir)..\_headers\imgui;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\_lib;$(LibraryPath)</LibraryPath>
-    <SourcePath>$(SolutionDir)..\_src\imgui;$(SourcePath)</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\Alex\Documents\Programming\cpp\_headers\nfd;C:\Users\Alex\Documents\Programming\cpp\_headers\imgui;C:\Users\Alex\Documents\Programming\cpp\_headers;C:\Users\Alex\Documents\Programming\opencl\_headers;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\_lib;C:\Users\Alex\Documents\Programming\cpp\_lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>C:\Users\Alex\Documents\Programming\cpp\_src\imgui;$(SourcePath)</SourcePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -139,15 +139,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\_src\glad.c" />
-    <ClCompile Include="..\..\_src\imgui\imgui.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_demo.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_draw.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_impl_glfw.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_stdlib.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_tables.cpp" />
-    <ClCompile Include="..\..\_src\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\glad.c" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_stdlib.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_tables.cpp" />
+    <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Camera2D.cpp" />
     <ClCompile Include="filedialog.cpp" />

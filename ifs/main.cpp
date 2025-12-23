@@ -1,6 +1,5 @@
 
 #include <iostream>
-#include <iomanip>
 #include <map>
 #include <thread>
 
@@ -141,7 +140,7 @@ bool init()
 	glfwSetFramebufferSizeCallback(window, onWindowResize);
 	glfwSetKeyCallback(window, keyPress);
 
-	if (!CLManager::initWithGLContext(window, createKernelSource()))
+	if (!CLManager::init(window, createKernelSource()))
 	{
 		std::cout << "failed to initialise CLManager, exiting" << std::endl;
 		glfwTerminate();
