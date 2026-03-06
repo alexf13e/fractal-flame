@@ -36,6 +36,8 @@ namespace FileDialog
         {
             return "";
         }
+
+        return "";
     }
 
     std::string saveDialog(const std::string& defaultFileName, const std::vector<nfdu8filteritem_t>& filters)
@@ -58,5 +60,7 @@ namespace FileDialog
         {
             return "";
         }
+
+        return "";
     }
 }

@@ -6,4 +6,8 @@
 #define PI 3.14159265f
 #define TWO_PI 6.28318531f
 
+#define DENOISE_NONE 0
+#define DENOISE_MEDIAN 1
+#define DENOISE_GAUSSIAN 2
+
 #endif

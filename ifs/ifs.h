@@ -23,6 +23,8 @@ namespace ifs
 	void setIterations(uint32_t n);
 	void setGamma(float g);
 	void setDarkness(float d);
+	void setDenoiseMode(uint32_t m);
+	void setRenderTransparency(bool t);
 
 	void addDefaultVariation();
 	void addRandomVariation();
@@ -42,7 +44,6 @@ namespace ifs
 	void clearSamples();
 	void draw();
 	void render();
-	void destroy();
 
 	float randomFloat();
 	uint32_t randomVariationNum();

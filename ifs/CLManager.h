@@ -2,8 +2,6 @@
 #ifndef CL_MANAGER_H
 #define CL_MANAGER_H
 
-#include "CL/cl.h"
-
 #include <iostream>
 #include <unordered_map>
 #include <string>
@@ -29,8 +27,8 @@
 
 #ifdef CL_MANAGER_GL
 #include "glad/glad.h"
-#include "GLFW/glfw3.h"
-#include "GLFW/glfw3native.h"
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 #endif
 
 #define WORKGROUP_SIZE 64
@@ -70,10 +68,10 @@ namespace CLManager
     #endif
     bool loadSources(const std::string& kernelSource);
 
-    void createKernel(const std::string& kernelName, uint32_t range=0);
+    bool createKernel(const std::string& kernelName, uint32_t range=0);
     bool setKernelRange(const std::string& kernelName, uint32_t range);
     bool setKernelParamBuffer(const std::string& kernelName, uint32_t argStartNum, std::initializer_list<std::string> bufferNames);
-    bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numBytes);
+    template<class T> bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numElements);
     template<class T> bool setKernelParamValue(const std::string& kernelName, uint32_t argStartNum, const T& value);
     bool runKernel(const std::string& kernelName);
     
@@ -193,7 +191,7 @@ namespace CLManager
         }
 
         int error;
-        bool contextSuccess;
+        bool contextSuccess = false;
         for (cl::Platform platform : all_platforms)
         {
             std::vector<cl::Device> platform_devices;
@@ -240,6 +238,8 @@ namespace CLManager
         #if CL_MANAGER_ENABLE_TIMING
         timingHistorySize = 300;
         #endif
+
+        return true;
     }
 #endif //CL_MANAGER_GL
 
@@ -251,19 +251,35 @@ namespace CLManager
 
         std::vector<cl::Device> d{ device };
 
-        int error = program.build(d, BUILD_OPTIONS);
-        if (error != CL_SUCCESS)
+        try
+        {
+            int error = program.build(d, BUILD_OPTIONS);
+            if (error != CL_SUCCESS)
+            {
+                std::cout << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device) << std::endl;
+                std::cout << "failed to compile kernel code: " << getErrorString(error) << std::endl;
+                return false;
+            }
+        }
+        catch (cl::BuildError err)
         {
             std::cout << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device) << std::endl;
-            std::cout << "failed to compile kernel code: " << getErrorString(error) << std::endl;
+            std::cout << "failed to compile kernel code: " << getErrorString(err.err()) << std::endl;
             return false;
         }
+        
 
         return true;
     }
 
-    void createKernel(const std::string& kernelName, uint32_t range)
+    bool createKernel(const std::string& kernelName, uint32_t range)
     {
+        if (kernels.count(kernelName) != 0)
+        {
+            std::cout << "tried to create a kernel more than once with name: " << kernelName << std::endl;
+            return false;
+        }
+
         kernels[kernelName] = cl::Kernel(program, kernelName.c_str());
         setKernelRange(kernelName, range);
 
@@ -271,6 +287,8 @@ namespace CLManager
         kernelTimings[kernelName] = std::vector<KernelTimeData>();
         kernelPrintOrder.push_back(kernelName);
         #endif
+
+        return true;
     }
 
     bool setKernelRange(const std::string& kernelName, uint32_t range)
@@ -311,7 +329,8 @@ namespace CLManager
         return success;
     }
 
-    bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numBytes)
+    template<class T>
+    bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numElements)
     {
         if (kernels.count(kernelName) == 0)
         {
@@ -319,7 +338,7 @@ namespace CLManager
             return false;
         }
 
-        int error = kernels[kernelName].setArg(argStartNum, numBytes, NULL);
+        int error = kernels[kernelName].setArg(argStartNum, numElements * sizeof(T), NULL);
         if (error != CL_SUCCESS)
         {
             std::cout << "error setting kernel local parameter at position " << argStartNum << " in kernel "
@@ -358,6 +377,9 @@ namespace CLManager
             return false;
         }
 
+        bool success = true;
+        int error;
+
         #if CL_MANAGER_ENABLE_TIMING
         cl::Event* timingEvent = nullptr;
         if (kernelTimings.find(kernelName) != kernelTimings.end() && timingHistorySize > 0)
@@ -365,25 +387,56 @@ namespace CLManager
             timingEvent = &kernelTimings[kernelName].back().timingEvent;
             kernelTimings[kernelName].back().timesRun++;
         }
-        int error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName], rangeLocal,
-            nullptr, timingEvent);
-        #else
-        int error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName],
-            rangeLocal);
-        #endif
 
-        bool success = true;
-        if (error != CL_SUCCESS)
+        try
         {
-            std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+            error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName], rangeLocal,
+                nullptr, timingEvent);
+
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
-
-        error = queue.finish();
-        if (error != CL_SUCCESS)
+        
+        #else
+        try
         {
-            std::cout << "error finishing queue running kernel " << kernelName << ": " << getErrorString(error)
-                << std::endl;
+            int error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName],
+                rangeLocal);
+    
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
+            success = false;
+        }
+        #endif
+
+        try
+        {
+            error = queue.finish();
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error finishing queue running kernel " << kernelName << ": " << getErrorString(error)
+                    << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error finishing queue running kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
 
@@ -397,7 +450,8 @@ namespace CLManager
     template<class T>
     bool createBuffer(const std::string& bufferName, const uint32_t numElements, const T* data)
     {
-        //if buffer already exists, will be automatically deleted when existing cl::Buffer goes out of scope
+        //if buffer already exists, will be automatically deleted when existing cl::Buffer goes out of scope.
+        //creating a buffer with the same name more than once is allowed for easy resizing
         int error = 0;
         buffers[bufferName] = cl::Buffer(context, CL_MEM_READ_WRITE, numElements * sizeof(T), nullptr, &error);
 
@@ -416,7 +470,8 @@ namespace CLManager
         }
         else
         {
-            return fillBuffer<T>(bufferName, numElements, (T)0);
+            T defaultValue = {0};
+            return fillBuffer<T>(bufferName, numElements, defaultValue);
         }
     }
 
@@ -596,7 +651,7 @@ namespace CLManager
     bool updateKernelTimings(const std::string& kernelName)
     {
         #if CL_MANAGER_ENABLE_TIMING
-        if (timingHistorySize == 0) return;
+        if (timingHistorySize == 0) return true;
 
         if (kernelTimings.count(kernelName) == 0)
         {
@@ -726,6 +781,7 @@ namespace CLManager
         #if CL_MANAGER_ENABLE_TIMING
         timingHistorySize = 300;
         #endif
+        
         return true;
     }
 

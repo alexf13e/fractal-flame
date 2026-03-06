@@ -38,14 +38,19 @@ namespace ifs
 		GLuint vao_fullScreenTri;
 
 		std::string b_previewTexture = "previewTexture";
-		std::string glb_processedPreviewTexture = "processedPreviewTexture";
+		std::string b_processedPreviewTexture = "processedPreviewTexture";
+		std::string glb_denoisedPreviewTexture = "denoisedPreviewTexture";
+
 		std::string b_renderTexture = "renderTexture";
+		std::string b_renderTextureDenoised = "renderTextureDenoised";
 		std::string b_renderTextureBytes = "renderTextureBytes";
+
 		std::string b_variations = "variations";
 		std::string b_colours = "colours";
 		std::string b_weights = "weights";
 		std::string k_produceSamples = "produceSamples";
 		std::string k_postProcess = "postProcess";
+		std::string k_denoise = "denoise";
 		std::string k_floatToByte = "floatToByte";
 		std::vector<cl::Memory> glObjectsToAcquire;
 
@@ -63,6 +68,7 @@ namespace ifs
 		uint32_t iterations;
 		float gamma;
 		float darkness;
+		uint32_t denoiseMode;
 
 		bool clearEveryFrame;
 		bool clearSingleFrame;
@@ -137,6 +143,14 @@ namespace ifs
 		};
 
 		constexpr uint32_t NUM_VALID_VARIATIONS = sizeof(VALID_VARIATIONS) / sizeof(uint32_t);
+
+		std::unordered_map<uint32_t, const char*> DENOISE_MODES = {
+			{ DENOISE_NONE, "None" },
+			{ DENOISE_MEDIAN, "Median blur" },
+			{ DENOISE_GAUSSIAN, "Gaussian blur" }
+		};
+
+		uint32_t NUM_DENOISE_MODES = DENOISE_MODES.size();
 	}
 
 	void acquireGLObjects()
@@ -164,20 +178,20 @@ namespace ifs
 		//replace preview buffer
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
 		CLManager::createBuffer<float>(b_previewTexture, numPixels * 4);
-		CLManager::createGLBufferNoVAO<float>(glb_processedPreviewTexture, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
+		CLManager::createBuffer<float>(b_processedPreviewTexture, numPixels * 4);
+		CLManager::createGLBufferNoVAO<float>(glb_denoisedPreviewTexture, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
 
 		glUseProgram(shFullScreenTri.getID());
-		//use shader storage buffer as easier to work with between opencl and gl
 		int bufferBlockBinding = 0;
 		int bufferBlockIndex = glGetProgramResourceIndex(shFullScreenTri.getID(), GL_SHADER_STORAGE_BLOCK, "TexOutput");
 		glShaderStorageBlockBinding(shFullScreenTri.getID(), bufferBlockIndex, bufferBlockBinding);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_processedPreviewTexture].glBuffer);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_denoisedPreviewTexture].glBuffer);
 
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texWidth"), previewTexWidth);
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texHeight"), previewTexHeight);
 		glUseProgram(0);
 
-		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_processedPreviewTexture].clBuffer);
+		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_denoisedPreviewTexture].clBuffer);
 
 		//update relevent kernel parameters for resized buffer
 		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture });
@@ -185,9 +199,16 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
 		
 		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture });
-		CLManager::setKernelParamGLBuffer(k_postProcess, 1, { glb_processedPreviewTexture });
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
 		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
+
+		CLManager::setKernelRange(k_denoise, numPixels);
+		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
+		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
+		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
+		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
+		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
+		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
 	}
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
@@ -271,6 +292,13 @@ namespace ifs
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "brightness"), 1.0f / darkness);
 		glUseProgram(0);
 		CLManager::setKernelParamValue(k_postProcess, 3, 1.0f / darkness);
+		wantsPostProcess = true;
+	}
+
+	void setDenoiseMode(uint32_t m)
+	{
+		denoiseMode = m;
+		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
 		wantsPostProcess = true;
 	}
 
@@ -593,6 +621,24 @@ namespace ifs
 		{
 			setDarkness(d);
 		}
+
+		if (ImGui::BeginCombo("Denoising", (DENOISE_MODES[denoiseMode])))
+		{
+			for (uint32_t j = 0; j < NUM_DENOISE_MODES; j++)
+			{
+				bool is_selected = denoiseMode == j;
+				if (ImGui::Selectable((DENOISE_MODES[j]), is_selected))
+				{
+					setDenoiseMode(j);
+				}
+				if (is_selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
+
 		ImGui::PopItemWidth();
 
 		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
@@ -812,12 +858,13 @@ namespace ifs
 
 		CLManager::createKernel(k_produceSamples);
 		CLManager::createKernel(k_postProcess);
+		CLManager::createKernel(k_denoise);
 		CLManager::createKernel(k_floatToByte);
 
 		CLManager::setKernelParamBuffer(k_produceSamples, 1, { b_variations, b_colours, b_weights });
-		CLManager::setKernelParamLocal(k_produceSamples, 12, MAX_VARIATIONS * sizeof(uint32_t));
-		CLManager::setKernelParamLocal(k_produceSamples, 13, MAX_VARIATIONS * 3 * sizeof(float));
-		CLManager::setKernelParamLocal(k_produceSamples, 14, MAX_VARIATIONS * sizeof(float));
+		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 12, MAX_VARIATIONS);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 13, MAX_VARIATIONS);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 14, MAX_VARIATIONS);
 
 		cam.init(previewTexWidth, previewTexHeight, glm::vec2(0.0f));
 
@@ -847,6 +894,7 @@ namespace ifs
 		setIterations(5);
 		setGamma(2.2f);
 		setDarkness(2.0f);
+		setDenoiseMode(DENOISE_NONE);
 
 		clearEveryFrame = false;
 		paused = false;
@@ -885,6 +933,7 @@ namespace ifs
 		{
 			acquireGLObjects();
 			CLManager::runKernel(k_postProcess);
+			CLManager::runKernel(k_denoise);
 			releaseGLObjects();
 			wantsPostProcess = false;
 		}
@@ -962,8 +1011,16 @@ namespace ifs
 		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
 		CLManager::runKernel(k_postProcess);
 
+		CLManager::createBuffer<float>(b_renderTextureDenoised, numPixels * 4);
+		CLManager::setKernelRange(k_denoise, numPixels);
+		CLManager::setKernelParamBuffer(k_denoise, 0, { b_renderTexture, b_renderTextureDenoised });
+		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
+		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
+		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
+		CLManager::runKernel(k_denoise);
+
 		CLManager::setKernelRange(k_floatToByte, numPixels);
-		CLManager::setKernelParamBuffer(k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
+		CLManager::setKernelParamBuffer(k_floatToByte, 0, { b_renderTextureDenoised, b_renderTextureBytes });
 		CLManager::setKernelParamValue(k_floatToByte, 2, numPixels);
 		CLManager::runKernel(k_floatToByte);
 
@@ -991,14 +1048,15 @@ namespace ifs
 
 		numPixels = previewTexWidth * previewTexHeight;
 		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture });
-		CLManager::setKernelParamGLBuffer(k_postProcess, 1, { glb_processedPreviewTexture });
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
 		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
-	}
 
-	void destroy()
-	{
-
+		CLManager::setKernelRange(k_denoise, numPixels);
+		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
+		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
+		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
+		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
+		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
 	}
 
 	float randomFloat()
