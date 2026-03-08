@@ -29,9 +29,15 @@ namespace ifs
 	void addDefaultVariation();
 	void addRandomVariation();
 	void removeVariation(uint32_t index);
+	
 	void setVariationNum(uint32_t index, uint32_t variation);
 	void setVariationColour(uint32_t index, glm::vec3 rgb);
 	void setVariationWeight(uint32_t index, float w);
+	void updateVariationTransform(uint32_t index);
+	void setVariationTranslation(uint32_t index, const glm::vec2& t);
+	void setVariationRotation(uint32_t index, const float r);
+	void setVariationScale(uint32_t index, const glm::vec2& s);
+
 	void loadFlameConfig(FlameConfig fc, bool savePrevFlame=true);
 	void saveFlameFile();
 	void loadFlameFile();

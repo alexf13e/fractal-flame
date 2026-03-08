@@ -344,7 +344,7 @@ void v48(float2* p)
 
 std::string strF = KERNEL_R_STRING(
 void F(float2* p, float3* c, local uint* variations, local float* colours, local float* weightThresholds,
-	float weightTotal, uint numVariations, uint* seed)
+	local float* transforms, float weightTotal, uint numVariations, uint* seed)
 {
 	//pick a weighted-random variation to apply
 
@@ -360,41 +360,45 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 
 	//blend colours in lab, but accumulate in srgb
 	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]))));
-
+	
 	uint v = variations[r];
-	if (v == 0) return;
-	else if (v == 1) v1(p);
-	else if (v == 2) v2(p);
-	else if (v == 3) v3(p);
-	else if (v == 4) v4(p);
-	else if (v == 5) v5(p);
-	else if (v == 6) v6(p);
-	else if (v == 7) v7(p);
-	else if (v == 8) v8(p);
-	else if (v == 9) v9(p);
-	else if (v == 10) v10(p);
-	else if (v == 11) v11(p);
-	else if (v == 12) v12(p);
-	else if (v == 13) v13(p, seed);
-	else if (v == 14) v14(p);
-	else if (v == 16) v16(p);
-	else if (v == 18) v18(p);
-	else if (v == 19) v19(p);
-	else if (v == 20) v20(p);
-	else if (v == 27) v27(p);
-	else if (v == 28) v28(p);
-	else if (v == 29) v29(p);
-	else if (v == 31) v31(p, seed);
-	else if (v == 34) v34(p, seed);
-	else if (v == 35) v35(p, seed);
-	else if (v == 42) v42(p);
-	else if (v == 43) v43(p, seed);
-	else if (v == 48) v48(p);
+	if (v != 0) //save doing all if checks, but allow for post-transform
+	{
+		if (v == 1) v1(p);
+		else if (v == 2) v2(p);
+		else if (v == 3) v3(p);
+		else if (v == 4) v4(p);
+		else if (v == 5) v5(p);
+		else if (v == 6) v6(p);
+		else if (v == 7) v7(p);
+		else if (v == 8) v8(p);
+		else if (v == 9) v9(p);
+		else if (v == 10) v10(p);
+		else if (v == 11) v11(p);
+		else if (v == 12) v12(p);
+		else if (v == 13) v13(p, seed);
+		else if (v == 14) v14(p);
+		else if (v == 16) v16(p);
+		else if (v == 18) v18(p);
+		else if (v == 19) v19(p);
+		else if (v == 20) v20(p);
+		else if (v == 27) v27(p);
+		else if (v == 28) v28(p);
+		else if (v == 29) v29(p);
+		else if (v == 31) v31(p, seed);
+		else if (v == 34) v34(p, seed);
+		else if (v == 35) v35(p, seed);
+		else if (v == 42) v42(p);
+		else if (v == 43) v43(p, seed);
+		else if (v == 48) v48(p);
+	}
+
+	*p = (float2)(p->x * transforms[r * 6 + 0] + p->y * transforms[r * 6 + 1] + transforms[r * 6 + 2], p->x * transforms[r * 6 + 3] + p->y * transforms[r * 6 + 4] + transforms[r * 6 + 5]);
 }
 );
 
 std::string strPlot = KERNEL_R_STRING(
-void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight)
+void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight, uchar plotWithoutAtomic)
 {
 	//draw the sample point to the buffer
 
@@ -412,17 +416,28 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 	//draw to buffer by accumulating pixel values
 	//use of atomics here can cause big slow down if lots of points end up in the same pixel
 	uint pixelIndex = pixelY * texWidth + pixelX;
-	atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], c.x);
-	atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], c.y);
-	atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], c.z);
-	atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
+	if (plotWithoutAtomic)
+	{
+		renderTexture[pixelIndex * 4 + 0] += c.x;
+		renderTexture[pixelIndex * 4 + 1] += c.y;
+		renderTexture[pixelIndex * 4 + 2] += c.z;
+		renderTexture[pixelIndex * 4 + 3] += 1.0f;
+	}
+	else
+	{
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], c.x);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], c.y);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], c.z);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
+	}
 }
 );
 
 std::string strProduceSamples = KERNEL_R_STRING(
 kernel void produceSamples(global float* renderTexture, global uint* variations, global float* colours, global float* weights,
-	uint numVariations, uint initialIterations, uint iterations, float16 matView, uint texWidth, uint texHeight, uint frameNum,
-	uint numSamples, local uint* lc_variations, local float* lc_colours, local float* lc_weightThresholds)
+	global float* transforms, uint numVariations, uint initialIterations, uint iterations, float16 matView, uint texWidth,
+	uint texHeight, uchar plotWithoutAtomic, uint frameNum, uint numSamples, local uint* lc_variations, local float* lc_colours,
+	local float* lc_weightThresholds, local float* lc_transforms)
 {
 	//each thread describes one sample point which gets iterated on and drawn to renderTexture
 
@@ -443,6 +458,13 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 			
 			weightTotal += weights[j];
 			lc_weightThresholds[j] = weightTotal;
+
+			lc_transforms[j * 6 + 0] = transforms[j * 6 + 0];
+			lc_transforms[j * 6 + 1] = transforms[j * 6 + 1];
+			lc_transforms[j * 6 + 2] = transforms[j * 6 + 2];
+			lc_transforms[j * 6 + 3] = transforms[j * 6 + 3];
+			lc_transforms[j * 6 + 4] = transforms[j * 6 + 4];
+			lc_transforms[j * 6 + 5] = transforms[j * 6 + 5];
 		}
 	}
 
@@ -460,22 +482,22 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 	//do some initial iterations to move away from unifom distribution in unit square
 	for (uint j = 0; j < initialIterations; j++)
 	{
-		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, weightTotal, numVariations, &seed);
+		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 	}
 	
 	for (uint j = 0; j < iterations; j++)
 	{
 		//pick a random function
-		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, weightTotal, numVariations, &seed);
+		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 
 		//plot the result
-		plot(renderTexture, p, c, matView, texWidth, texHeight);
+		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
 	}
 
 	if (iterations == 0)
 	{
 		//if there weren't any iterations, still want to draw where the point was
-		plot(renderTexture, p, c, matView, texWidth, texHeight);
+		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
 	}
 }
 );

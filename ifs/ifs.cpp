@@ -9,6 +9,9 @@
 #include "stb_image_write.h"
 #include "imgui.h"
 
+#include "glm/gtc/constants.hpp"
+#include "glm/gtx/matrix_transform_2d.hpp"
+
 #define CL_MANAGER_IMPL
 #define CL_MANAGER_GL
 #include "CLManager.h"
@@ -30,6 +33,11 @@ namespace ifs
 		uint32_t variations[MAX_VARIATIONS];
 		float colours[MAX_VARIATIONS * 3];
 		float weights[MAX_VARIATIONS];
+		float transforms[MAX_VARIATIONS * 6];
+
+		glm::vec2 translations[MAX_VARIATIONS];
+		float rotations[MAX_VARIATIONS];
+		glm::vec2 scales[MAX_VARIATIONS];
 	};
 
 	namespace
@@ -48,6 +56,7 @@ namespace ifs
 		std::string b_variations = "variations";
 		std::string b_colours = "colours";
 		std::string b_weights = "weights";
+		std::string b_transforms = "transforms";
 		std::string k_produceSamples = "produceSamples";
 		std::string k_postProcess = "postProcess";
 		std::string k_denoise = "denoise";
@@ -74,6 +83,7 @@ namespace ifs
 		bool clearSingleFrame;
 		bool paused;
 		bool wantsPostProcess;
+		bool plotWithoutAtomic;
 
 		FlameConfig currentFlame;
 		std::stack<FlameConfig> previousFlames;
@@ -192,23 +202,6 @@ namespace ifs
 		glUseProgram(0);
 
 		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_denoisedPreviewTexture].clBuffer);
-
-		//update relevent kernel parameters for resized buffer
-		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture });
-		CLManager::setKernelParamValue(k_produceSamples, 8, previewTexWidth);
-		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
-		
-		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
-		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
-
-		CLManager::setKernelRange(k_denoise, numPixels);
-		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
-		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
-		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
-		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
-		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
-		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
 	}
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
@@ -217,14 +210,12 @@ namespace ifs
 
 		cam.updatePosition(deltaPos);
 		cam.updateView(deltaZoom);
-		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 		clearSingleFrame = true;
 	}
 
 	void resetCam()
 	{
 		cam.reset();
-		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 		clearSingleFrame = true;
 	}
 
@@ -245,15 +236,12 @@ namespace ifs
 		previewTexHeight = height;
 		createPreviewTexture();
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
-		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 	}
 
 	void setNumPreviewSamples(uint32_t n)
 	{
 		//set the number of sample points which will be calculated each frame for the preview
 		numPreviewSamples = n;
-		CLManager::setKernelRange(k_produceSamples, numPreviewSamples);
-		CLManager::setKernelParamValue(k_produceSamples, 11, numPreviewSamples);
 		clearSingleFrame = true;
 	}
 
@@ -261,7 +249,6 @@ namespace ifs
 	{
 		//number of iterations which will run on sample points before their positions are drawn to the buffer
 		initialIterations = n;
-		CLManager::setKernelParamValue(k_produceSamples, 5, initialIterations);
 		clearSingleFrame = true;
 	}
 
@@ -269,7 +256,6 @@ namespace ifs
 	{
 		//number of iterations after top of initialIterations, where the sample position at each iteration WILL be drawn
 		iterations = n;
-		CLManager::setKernelParamValue(k_produceSamples, 6, iterations);
 		clearSingleFrame = true;
 	}
 
@@ -280,7 +266,6 @@ namespace ifs
 		glUseProgram(shFullScreenTri.getID());
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "gamma"), gamma);
 		glUseProgram(0);
-		CLManager::setKernelParamValue(k_postProcess, 2, gamma);
 		wantsPostProcess = true;
 	}
 
@@ -291,21 +276,18 @@ namespace ifs
 		glUseProgram(shFullScreenTri.getID());
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "brightness"), 1.0f / darkness);
 		glUseProgram(0);
-		CLManager::setKernelParamValue(k_postProcess, 3, 1.0f / darkness);
 		wantsPostProcess = true;
 	}
 
 	void setDenoiseMode(uint32_t m)
 	{
 		denoiseMode = m;
-		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
 		wantsPostProcess = true;
 	}
 
 	void setRenderTransparency(bool t)
 	{
 		renderTransparency = t;
-		CLManager::setKernelParamValue(k_postProcess, 4, renderTransparency);
 	}
 
 	void addDefaultVariation()
@@ -320,8 +302,10 @@ namespace ifs
 			setVariationNum(index, 0);
 			setVariationColour(index, rgb);
 			setVariationWeight(index, 1.0f);
+			setVariationTranslation(index, glm::vec2(0.0f));
+			setVariationRotation(index, 0.0f);
+			setVariationScale(index, glm::vec2(1.0f));
 
-			CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
 			clearSingleFrame = true;
 		}
 	}
@@ -338,8 +322,10 @@ namespace ifs
 			glm::vec3 rgb = randomOKLChtoRGB();
 			setVariationColour(index, rgb);
 			setVariationWeight(index, randomFloat());
+			setVariationTranslation(index, glm::vec2(randomFloat() * 2.0f - 1.0f, randomFloat() * 2.0f - 1.0f));
+			setVariationRotation(index, randomFloat() * glm::two_pi<float>());
+			setVariationScale(index, glm::vec2(randomFloat(), randomFloat()));
 
-			CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
 			clearSingleFrame = true;
 		}
 	}
@@ -354,15 +340,24 @@ namespace ifs
 			currentFlame.colours[j * 3 + 1] = currentFlame.colours[(j + 1) * 3 + 1];
 			currentFlame.colours[j * 3 + 2] = currentFlame.colours[(j + 1) * 3 + 2];
 			currentFlame.weights[j] = currentFlame.weights[j + 1];
+			currentFlame.translations[j] = currentFlame.translations[j + 1];
+			currentFlame.rotations[j] = currentFlame.rotations[j + 1];
+			currentFlame.scales[j] = currentFlame.scales[j + 1];
+			currentFlame.transforms[j * 6 + 0] = currentFlame.transforms[(j + 1) * 6 + 0];
+			currentFlame.transforms[j * 6 + 1] = currentFlame.transforms[(j + 1) * 6 + 1];
+			currentFlame.transforms[j * 6 + 2] = currentFlame.transforms[(j + 1) * 6 + 2];
+			currentFlame.transforms[j * 6 + 3] = currentFlame.transforms[(j + 1) * 6 + 3];
+			currentFlame.transforms[j * 6 + 4] = currentFlame.transforms[(j + 1) * 6 + 4];
+			currentFlame.transforms[j * 6 + 5] = currentFlame.transforms[(j + 1) * 6 + 5];
 		}
 
 		currentFlame.numVariations--;
 
 		//update kernel buffer parameters
-		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, currentFlame.variations);
-		CLManager::writeBuffer(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
-		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, currentFlame.weights);
-		CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
+		CLManager::writeBuffer(b_variations, MAX_VARIATIONS - index - 1, currentFlame.variations, index);
+		CLManager::writeBuffer(b_colours, (MAX_VARIATIONS - index - 1) * 3, currentFlame.colours, index);
+		CLManager::writeBuffer(b_weights, MAX_VARIATIONS - index - 1, currentFlame.weights, index);
+		CLManager::writeBuffer(b_transforms, (MAX_VARIATIONS - index - 1) * 6, currentFlame.transforms, index);
 
 		clearSingleFrame = true;
 	}
@@ -414,16 +409,66 @@ namespace ifs
 		clearSingleFrame = true;
 	}
 
+	void updateVariationTransform(uint32_t index)
+	{
+		if (index >= currentFlame.numVariations) return;
+
+		glm::mat3 transform =
+			glm::rotate(
+				glm::translate(
+					glm::scale(glm::mat3(1.0f), currentFlame.scales[index]),
+				currentFlame.translations[index]),
+			currentFlame.rotations[index]);
+
+		currentFlame.transforms[index * 6 + 0] = transform[0][0];
+		currentFlame.transforms[index * 6 + 1] = transform[1][0];
+		currentFlame.transforms[index * 6 + 2] = transform[2][0];
+		currentFlame.transforms[index * 6 + 3] = transform[0][1];
+		currentFlame.transforms[index * 6 + 4] = transform[1][1];
+		currentFlame.transforms[index * 6 + 5] = transform[2][1];
+
+		CLManager::writeBuffer(b_transforms, 6, &currentFlame.transforms[index * 6], index * 6);
+		clearSingleFrame = true;
+	}
+
+	void setVariationTranslation(uint32_t index, const glm::vec2& t)
+	{
+		if (index >= currentFlame.numVariations) return;
+
+		currentFlame.translations[index] = t;
+		updateVariationTransform(index);
+	}
+
+	void setVariationRotation(uint32_t index, const float r)
+	{
+		if (index >= currentFlame.numVariations) return;
+
+		currentFlame.rotations[index] = r;
+		updateVariationTransform(index);
+	}
+
+	void setVariationScale(uint32_t index, const glm::vec2& s)
+	{
+		if (index >= currentFlame.numVariations) return;
+
+		currentFlame.scales[index] = s;
+		updateVariationTransform(index);
+	}
+
 	void loadFlameConfig(FlameConfig fc, bool savePrevFlame)
 	{
 		if (savePrevFlame) previousFlames.push(currentFlame);
 
 		currentFlame = fc;
 
-		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, currentFlame.variations);
-		CLManager::writeBuffer(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
-		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, currentFlame.weights);
-		CLManager::setKernelParamValue(k_produceSamples, 4, currentFlame.numVariations);
+		CLManager::writeBuffer(b_variations, fc.numVariations, currentFlame.variations);
+		CLManager::writeBuffer(b_colours, fc.numVariations * 3, currentFlame.colours);
+		CLManager::writeBuffer(b_weights, fc.numVariations, currentFlame.weights);
+
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+		{
+			updateVariationTransform(i);
+		}
 
 		clearSingleFrame = true;
 	}
@@ -458,7 +503,12 @@ namespace ifs
 				std::to_string(currentFlame.colours[i * 3]) << "," <<
 				std::to_string(currentFlame.colours[i * 3 + 1]) << "," <<
 				std::to_string(currentFlame.colours[i * 3 + 2]) << "," <<
-				std::to_string(currentFlame.weights[i]) <<
+				std::to_string(currentFlame.weights[i]) << ", " <<
+				std::to_string(currentFlame.translations[i].x) << ", " <<
+				std::to_string(currentFlame.translations[i].y) << ", " <<
+				std::to_string(currentFlame.rotations[i]) << ", " <<
+				std::to_string(currentFlame.scales[i].x) << ", " <<
+				std::to_string(currentFlame.scales[i].y) <<
 				std::endl;
 		}
 	}
@@ -566,17 +616,36 @@ namespace ifs
 				values.push_back(val);
 			}
 
-			if (values.size() != 5) //variation number, colour L, colour C, colour h, weight
+			if (values.size() > 10) //variation number, colour L, colour C, colour h, weight, translation x, y, rotation, scale x, y
 			{
 				std::cout << "Flame config file does not match expected format, loading cancelled" << std::endl;
 				return;
 			}
 
-			if (!checkVarNum(values[0], &newFlameConfig.variations[i])) return;
-			if (!checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colours[i * 3])) return;
-			if (!checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 1])) return;
-			if (!checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 2])) return;
-			if (!checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) return;
+			//if not all values are provided, set them to a default value
+			newFlameConfig.variations[i] = 0;
+			newFlameConfig.colours[i * 3] = 1.0f;
+			newFlameConfig.colours[i * 3 + 1] = 1.0f;
+			newFlameConfig.colours[i * 3 + 2] = 1.0f;
+			newFlameConfig.weights[i] = 1.0f;
+			newFlameConfig.translations[i].x = 0.0f;
+			newFlameConfig.translations[i].y = 0.0f;
+			newFlameConfig.rotations[i] = 0.0f;
+			newFlameConfig.scales[i].x = 1.0f;
+			newFlameConfig.scales[i].y = 1.0f;
+
+			if (values.size() > 0 && !checkVarNum(values[0], &newFlameConfig.variations[i])) 							{ printErrInvalidData(); return; }
+			if (values.size() > 1 && !checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colours[i * 3])) 			{ printErrInvalidData(); return; }
+			if (values.size() > 2 && !checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 1]))		{ printErrInvalidData(); return; }
+			if (values.size() > 3 && !checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colours[i * 3 + 2])) 		{ printErrInvalidData(); return; }
+			if (values.size() > 4 && !checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) 				{ printErrInvalidData(); return; }
+			
+			//transform values don't technically have a valid range, so only checking the string value is a number
+			if (values.size() > 5 && !checkValueFloat(values[5], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].x)) { printErrInvalidData(); return; }
+			if (values.size() > 6 && !checkValueFloat(values[6], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].y)) { printErrInvalidData(); return; }
+			if (values.size() > 7 && !checkValueFloat(values[7], -FLT_MAX, FLT_MAX, &newFlameConfig.rotations[i])) 		{ printErrInvalidData(); return; }
+			if (values.size() > 8 && !checkValueFloat(values[8], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].x)) 		{ printErrInvalidData(); return; }
+			if (values.size() > 9 && !checkValueFloat(values[9], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].y)) 		{ printErrInvalidData(); return; }
 		}
 
 		loadFlameConfig(newFlameConfig);
@@ -584,11 +653,10 @@ namespace ifs
 
 	void createGUI()
 	{
-		auto IMGUI_SPACER = []() { ImGui::Dummy(ImVec2(0.0f, 10.0f)); };
 		constexpr float CUSTOM_UI_ITEM_WIDTH = 200.0f;
 		constexpr float UI_VARIATION_SETTINGS_WIDTH = 300.0f;
 
-		ImGui::Begin("Fractal Flame IFS", NULL);
+		ImGui::Begin("Fractal Flame IFS", NULL, ImGuiWindowFlags_NoBackground);
 		ImGui::SeparatorText("Settings");
 		ImGui::PushItemWidth(CUSTOM_UI_ITEM_WIDTH);
 
@@ -639,6 +707,8 @@ namespace ifs
 			ImGui::EndCombo();
 		}
 
+		ImGui::Checkbox("Faster plotting (less accurate)", &plotWithoutAtomic);
+
 		ImGui::PopItemWidth();
 
 		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
@@ -658,7 +728,7 @@ namespace ifs
 			paused = !paused;
 		}
 
-		IMGUI_SPACER();
+		ImGui::Spacing();
 
 		if (ImGui::Button("Save flame config"))
 		{
@@ -683,113 +753,10 @@ namespace ifs
 			}
 		}
 
-		IMGUI_SPACER();
+		ImGui::Spacing();
 
-		ImGui::SeparatorText("Variations");
+		ImGui::SeparatorText("Render");
 
-		if (currentFlame.numVariations > 0)
-		{
-			ImGui::Text("Randomise");
-
-			if (ImGui::Button("Variations"))
-			{
-				previousFlames.push(currentFlame);
-
-				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
-				{
-					setVariationNum(i, VALID_VARIATIONS[randomVariationNum()]);
-				}
-			}
-
-			ImGui::SameLine();
-
-			if (ImGui::Button("Colours"))
-			{
-				previousFlames.push(currentFlame);
-
-				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
-				{
-					glm::vec3 rgb = randomOKLChtoRGB();
-					setVariationColour(i, rgb);
-				}
-			}
-
-			ImGui::SameLine();
-
-			if (ImGui::Button("Weights"))
-			{
-				previousFlames.push(currentFlame);
-
-				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
-				{
-					setVariationWeight(i, randomFloat());
-				}
-			}
-		}
-
-		if (currentFlame.numVariations < MAX_VARIATIONS)
-		{
-			if (ImGui::Button("Add variation"))
-			{
-				addDefaultVariation();
-			}
-		}
-
-		IMGUI_SPACER();
-		ImGui::Separator();
-
-		ImGui::BeginChild("VariationWindow");
-		ImGui::PushItemWidth(UI_VARIATION_SETTINGS_WIDTH);
-		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
-		{
-			ImGui::PushID(i);
-
-			if (ImGui::BeginCombo("Variation", (std::to_string(currentFlame.variations[i]) + " - " + VARIATION_NAMES[currentFlame.variations[i]]).c_str()))
-			{
-				for (uint32_t j = 0; j < NUM_VALID_VARIATIONS; j++)
-				{
-					bool is_selected = currentFlame.variations[i] == VALID_VARIATIONS[j];
-					if (ImGui::Selectable((std::to_string(VALID_VARIATIONS[j]) + " - " + VARIATION_NAMES[VALID_VARIATIONS[j]]).c_str(), is_selected))
-					{
-						setVariationNum(i, VALID_VARIATIONS[j]);
-					}
-					if (is_selected)
-					{
-						ImGui::SetItemDefaultFocus();
-					}
-				}
-				ImGui::EndCombo();
-			}
-
-			if (ImGui::ColorEdit3("Colour", &currentFlame.colours[i * 3]))
-			{
-				glm::vec3 col = { currentFlame.colours[i * 3], currentFlame.colours[i * 3 + 1], currentFlame.colours[i * 3 + 2] };
-				setVariationColour(i, col);
-			}
-
-			float w = currentFlame.weights[i];
-			if (ImGui::SliderFloat("Weight", &w, 0.0f, 1.0f))
-			{
-				setVariationWeight(i, w);
-			}			
-
-			if (ImGui::Button("Remove"))
-			{
-				removeVariation(i);
-			}
-
-			IMGUI_SPACER();
-
-			ImGui::Separator();
-
-			ImGui::PopID();
-		}
-		ImGui::PopItemWidth();
-		ImGui::EndChild();
-
-		ImGui::End();
-
-		ImGui::Begin("Render");
 		ImGui::PushItemWidth(150.0f);
 		
 		int res[2] = { renderTexWidth, renderTexHeight };
@@ -827,10 +794,189 @@ namespace ifs
 			setRenderTransparency(renderTransparency);
 		}
 
-		if (ImGui::Button("Render"))
+		if (ImGui::Button("Save as image"))
 		{
 			render();
 		}
+		ImGui::End();
+
+
+		ImGui::Begin("Variations", NULL, ImGuiWindowFlags_NoBackground);
+
+		if (currentFlame.numVariations > 0)
+		{
+			ImGui::Text("Randomise");
+
+			const float BUTTON_WIDTH = 100.0f;
+
+			if (ImGui::Button("Variations", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationNum(i, VALID_VARIATIONS[randomVariationNum()]);
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Colours", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					glm::vec3 rgb = randomOKLChtoRGB();
+					setVariationColour(i, rgb);
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Weights", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationWeight(i, randomFloat());
+				}
+			}
+
+			//new line
+
+			if (ImGui::Button("Rotations", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationRotation(i, randomFloat() * glm::two_pi<float>());
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Translations", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationTranslation(i, glm::vec2(randomFloat(), randomFloat()));
+				}
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Scales", ImVec2(BUTTON_WIDTH, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationScale(i, glm::vec2(randomFloat() * 4.0f - 2.0f, randomFloat() * 4.0f - 2.0f));
+				}
+			}
+
+			if (ImGui::Button("All", ImVec2(BUTTON_WIDTH * 3.0f + ImGui::GetStyle().ItemSpacing.x * 2.0f, 0.0f)))
+			{
+				previousFlames.push(currentFlame);
+
+				for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+				{
+					setVariationNum(i, VALID_VARIATIONS[randomVariationNum()]);
+					glm::vec3 rgb = randomOKLChtoRGB();
+					setVariationColour(i, rgb);
+					setVariationWeight(i, randomFloat());
+					setVariationTranslation(i, glm::vec2(randomFloat(), randomFloat()));
+					setVariationRotation(i, randomFloat() * glm::two_pi<float>());
+					setVariationScale(i, glm::vec2(randomFloat() * 4.0f - 2.0f, randomFloat() * 4.0f - 2.0f));
+				}
+			}
+		}
+
+		ImGui::Spacing();
+
+		if (currentFlame.numVariations < MAX_VARIATIONS)
+		{
+			if (ImGui::Button("Add variation"))
+			{
+				addDefaultVariation();
+				
+			}
+		}
+
+		ImGui::Separator();
+
+		ImGui::BeginChild("VariationWindow");
+		ImGui::PushItemWidth(UI_VARIATION_SETTINGS_WIDTH);
+		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
+		{
+			ImGui::PushID(i);
+
+			if (ImGui::BeginCombo("Variation", (std::to_string(currentFlame.variations[i]) + " - " + VARIATION_NAMES[currentFlame.variations[i]]).c_str()))
+			{
+				for (uint32_t j = 0; j < NUM_VALID_VARIATIONS; j++)
+				{
+					bool is_selected = currentFlame.variations[i] == VALID_VARIATIONS[j];
+					if (ImGui::Selectable((std::to_string(VALID_VARIATIONS[j]) + " - " + VARIATION_NAMES[VALID_VARIATIONS[j]]).c_str(), is_selected))
+					{
+						setVariationNum(i, VALID_VARIATIONS[j]);
+					}
+					if (is_selected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			if (ImGui::ColorEdit3("Colour", &currentFlame.colours[i * 3]))
+			{
+				glm::vec3 col = { currentFlame.colours[i * 3], currentFlame.colours[i * 3 + 1], currentFlame.colours[i * 3 + 2] };
+				setVariationColour(i, col);
+			}
+
+			float w = currentFlame.weights[i];
+			if (ImGui::SliderFloat("Weight", &w, 0.0f, 1.0f))
+			{
+				setVariationWeight(i, w);
+			}
+
+			float r = glm::degrees(currentFlame.rotations[i]);
+			if (ImGui::DragFloat("Rotation", &r, 1.0f))
+			{
+				setVariationRotation(i, glm::radians(r));
+			}
+
+			float t[2] = { currentFlame.translations[i].x, currentFlame.translations[i].y };
+			if (ImGui::DragFloat2("Translation", t, 0.01f))
+			{
+				setVariationTranslation(i, glm::vec2(t[0], t[1]));
+			}
+
+
+			float s[2] = { currentFlame.scales[i].x, currentFlame.scales[i].y };
+			if (ImGui::DragFloat2("Scale", s, 0.01f))
+			{
+				setVariationScale(i, glm::vec2(s[0], s[1]));
+			}
+
+			if (ImGui::Button("Remove"))
+			{
+				removeVariation(i);
+			}
+
+			ImGui::Spacing();
+
+			ImGui::Separator();
+
+			ImGui::PopID();
+		}
+		ImGui::PopItemWidth();
+		ImGui::EndChild();
 
 		ImGui::End();
 	}
@@ -850,21 +996,27 @@ namespace ifs
 			currentFlame.colours[i * 3 + 1] = 0.0f;
 			currentFlame.colours[i * 3 + 2] = 0.0f;
 			currentFlame.weights[i] = 0.0f;
+			currentFlame.transforms[i * 6 + 0] = 0.0f;
+			currentFlame.transforms[i * 6 + 1] = 0.0f;
+			currentFlame.transforms[i * 6 + 2] = 0.0f;
+			currentFlame.transforms[i * 6 + 3] = 0.0f;
+			currentFlame.transforms[i * 6 + 4] = 0.0f;
+			currentFlame.transforms[i * 6 + 5] = 0.0f;
+
+			currentFlame.translations[i] = glm::vec2(0.0f);
+			currentFlame.rotations[i] = 0.0f;
+			currentFlame.scales[i] = glm::vec2(0.0f);
 		}
 
 		CLManager::createBuffer<uint32_t>(b_variations, MAX_VARIATIONS, currentFlame.variations);
 		CLManager::createBuffer<float>(b_colours, MAX_VARIATIONS * 3, currentFlame.colours);
 		CLManager::createBuffer<float>(b_weights, MAX_VARIATIONS, currentFlame.weights);
+		CLManager::createBuffer<float>(b_transforms, MAX_VARIATIONS * 6, currentFlame.transforms);
 
 		CLManager::createKernel(k_produceSamples);
 		CLManager::createKernel(k_postProcess);
 		CLManager::createKernel(k_denoise);
 		CLManager::createKernel(k_floatToByte);
-
-		CLManager::setKernelParamBuffer(k_produceSamples, 1, { b_variations, b_colours, b_weights });
-		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 12, MAX_VARIATIONS);
-		CLManager::setKernelParamLocal<float>(k_produceSamples, 13, MAX_VARIATIONS);
-		CLManager::setKernelParamLocal<float>(k_produceSamples, 14, MAX_VARIATIONS);
 
 		cam.init(previewTexWidth, previewTexHeight, glm::vec2(0.0f));
 
@@ -887,7 +1039,7 @@ namespace ifs
 
 		setRenderTransparency(false);
 
-		setNumPreviewSamples(10000);
+		setNumPreviewSamples(50000);
 		totalPreviewSamples = 0;
 		numRenderSamples = 1000000;
 		setInitialIterations(20);
@@ -897,8 +1049,10 @@ namespace ifs
 		setDenoiseMode(DENOISE_NONE);
 
 		clearEveryFrame = false;
+		clearSingleFrame = false;
 		paused = false;
 		wantsPostProcess = false;
+		plotWithoutAtomic = false;
 
 		//start the program with 3 random variations
 		addRandomVariation();
@@ -908,11 +1062,49 @@ namespace ifs
 		return true;
 	}
 
+	void updateKernelParams()
+	{
+		CLManager::setKernelRange(k_produceSamples, numPreviewSamples);
+		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture, b_variations, b_colours, b_weights, b_transforms });
+		CLManager::setKernelParamValue(k_produceSamples, 5, currentFlame.numVariations);
+		CLManager::setKernelParamValue(k_produceSamples, 6, initialIterations);
+		CLManager::setKernelParamValue(k_produceSamples, 7, iterations);
+		CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
+		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexWidth);
+		CLManager::setKernelParamValue(k_produceSamples, 10, previewTexHeight);
+		CLManager::setKernelParamValue<uint8_t>(k_produceSamples, 11, plotWithoutAtomic);
+		CLManager::setKernelParamValue(k_produceSamples, 12, frameNum);
+		CLManager::setKernelParamValue(k_produceSamples, 13, numPreviewSamples);
+		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 14, currentFlame.numVariations);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 15, currentFlame.numVariations * 3);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 16, currentFlame.numVariations);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 17, currentFlame.numVariations * 6);
+		
+		uint32_t numPixels = previewTexWidth * previewTexHeight;
+		CLManager::setKernelRange(k_postProcess, numPixels);
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
+		CLManager::setKernelParamValue(k_postProcess, 2, gamma);
+		CLManager::setKernelParamValue(k_postProcess, 3, 1.0f / darkness);
+		CLManager::setKernelParamValue(k_postProcess, 4, renderTransparency);
+		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
+
+		CLManager::setKernelRange(k_denoise, numPixels);
+		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
+		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
+		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
+		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
+		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
+		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
+	}
+
 	void update()
 	{
+		updateKernelParams();
+
 		if (!paused && clearEveryFrame)
 		{
 			clearSamples();
+			clearSingleFrame = false;
 		}
 
 		if (clearSingleFrame)
@@ -921,10 +1113,15 @@ namespace ifs
 			clearSingleFrame = false;
 		}
 
-		if (!paused && currentFlame.numVariations > 0)
+		if (!paused)
 		{
-			CLManager::setKernelParamValue(k_produceSamples, 10, frameNum);
-			CLManager::runKernel(k_produceSamples);
+			if (currentFlame.numVariations > 0)
+			{
+				CLManager::runKernel(k_produceSamples);
+				frameNum++;
+				totalPreviewSamples += numPreviewSamples;
+				if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
+			}
 
 			wantsPostProcess = true;
 		}
@@ -936,13 +1133,6 @@ namespace ifs
 			CLManager::runKernel(k_denoise);
 			releaseGLObjects();
 			wantsPostProcess = false;
-		}
-
-		if (!paused)
-		{
-			frameNum++;
-			totalPreviewSamples += numPreviewSamples;
-			if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
 		}
 	}
 
@@ -989,17 +1179,17 @@ namespace ifs
 		uint32_t numPixels = renderTexWidth * renderTexHeight;
 		CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
 		CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
-		
 
 		//produce the samples on the texture
 		CLManager::setKernelRange(k_produceSamples, numRenderSamples);
 		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_renderTexture });
 		cam.setAspectRatio(renderTexWidth, renderTexHeight);
-		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
-		CLManager::setKernelParamValue(k_produceSamples, 8, renderTexWidth);
-		CLManager::setKernelParamValue(k_produceSamples, 9, renderTexHeight);
-		CLManager::setKernelParamValue(k_produceSamples, 10, 0);
-		CLManager::setKernelParamValue(k_produceSamples, 11, numRenderSamples);
+		CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
+		CLManager::setKernelParamValue(k_produceSamples, 9, renderTexWidth);
+		CLManager::setKernelParamValue(k_produceSamples, 10, renderTexHeight);
+		CLManager::setKernelParamValue(k_produceSamples, 11, plotWithoutAtomic);
+		CLManager::setKernelParamValue(k_produceSamples, 12, 0);
+		CLManager::setKernelParamValue(k_produceSamples, 13, numRenderSamples);
 		CLManager::runKernel(k_produceSamples);
 		
 
@@ -1036,27 +1226,7 @@ namespace ifs
 
 		std::cout << "Render complete" << std::endl;
 
-		//put preview kernel parameters back
-		CLManager::setKernelRange(k_produceSamples, numPreviewSamples);
-		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture });
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
-		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
-		CLManager::setKernelParamValue(k_produceSamples, 8, previewTexWidth);
-		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
-		CLManager::setKernelParamValue(k_produceSamples, 10, frameNum);
-		CLManager::setKernelParamValue(k_produceSamples, 11, numPreviewSamples);
-
-		numPixels = previewTexWidth * previewTexHeight;
-		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
-		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
-
-		CLManager::setKernelRange(k_denoise, numPixels);
-		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
-		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
-		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
-		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
-		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
 	}
 
 	float randomFloat()
