@@ -398,6 +398,28 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 );
 
 std::string strPlot = KERNEL_R_STRING(
+void writePixel(global float* renderTexture, int x, int y, uint texWidth, uint texHeight, float3 color, uchar plotWithoutAtomic)
+{
+	if (x < 0 || x >= texWidth || y < 0 || y >= texHeight) return;
+
+	//use of atomics here can cause big slow down if lots of points end up in the same pixel
+	uint pixelIndex = y * texWidth + x;
+	if (plotWithoutAtomic)
+	{
+		renderTexture[pixelIndex * 4 + 0] += color.x;
+		renderTexture[pixelIndex * 4 + 1] += color.y;
+		renderTexture[pixelIndex * 4 + 2] += color.z;
+		renderTexture[pixelIndex * 4 + 3] += 1.0f;
+	}
+	else
+	{
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], color.x);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], color.y);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], color.z);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
+	}
+}
+
 void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight, uchar plotWithoutAtomic)
 {
 	//draw the sample point to the buffer
@@ -411,25 +433,12 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 	//discard positions outside of the buffer
 	int pixelX = u * texWidth;
 	int pixelY = v * texHeight;
-	if (pixelX < 0 || pixelX >= texWidth || pixelY < 0 || pixelY >= texHeight) return;
 
-	//draw to buffer by accumulating pixel values
-	//use of atomics here can cause big slow down if lots of points end up in the same pixel
-	uint pixelIndex = pixelY * texWidth + pixelX;
-	if (plotWithoutAtomic)
-	{
-		renderTexture[pixelIndex * 4 + 0] += c.x;
-		renderTexture[pixelIndex * 4 + 1] += c.y;
-		renderTexture[pixelIndex * 4 + 2] += c.z;
-		renderTexture[pixelIndex * 4 + 3] += 1.0f;
-	}
-	else
-	{
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], c.x);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], c.y);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], c.z);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
-	}
+	writePixel(renderTexture, pixelX, pixelY, texWidth, texHeight, c * 0.6f, plotWithoutAtomic);
+	writePixel(renderTexture, pixelX - 1, pixelY, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
+	writePixel(renderTexture, pixelX + 1, pixelY, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
+	writePixel(renderTexture, pixelX, pixelY - 1, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
+	writePixel(renderTexture, pixelX, pixelY + 1, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
 }
 );
 

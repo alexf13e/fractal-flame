@@ -22,6 +22,7 @@ The image below shows an example set of variations after starting the program, a
 * Iterations - how many iterations should be applied after the initial ones. The position of the sample point will be rendered after each of these iterations, and effectively just increases the number of samples per frame when `initial iterations` is sufficiently high (e.g. 20+).
 * Gamma - the pixel value will be set to `pow(pixel, 1/gamma)` in a post processing step.
 * Darkness - the pixel value will be multiplied by `1/darkness` in a post processing step before gamma. "Darkness" is chosen as opposed to brightness, as the slider is nicer to control this way.
+* Denoising - apply a small blur to the image to reduce the noisyness, though honestly it probably looks better without using this.
 * Faster plotting - Removes use of atomics when plotting points, improving performance when lots of points try to render to the same pixel at the same time but consequently losing the colour from some points.
 * Clear every frame - prevents samples from accumulating by resetting the preview buffer every frame.
 * Clear image - resets the preview, clearing all accumulated samples.
