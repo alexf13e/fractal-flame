@@ -109,11 +109,6 @@ bool init()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	//check monitor size to set appropriate window size and centred position
-	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-	int monitorX, monitorY, monitorWidth, monitorHeight;
-	glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
 	window = glfwCreateWindow(1280, 720, "Fractal Flame IFS", NULL, NULL);
 	if (window == NULL)
 	{
@@ -123,9 +118,6 @@ bool init()
 	}
 
 	glfwMaximizeWindow(window);
-
-	int initialWindowWidth, initialWindowHeight;
-	glfwGetWindowSize(window, &initialWindowWidth, &initialWindowHeight);
 
 	glfwMakeContextCurrent(window);
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -144,8 +136,6 @@ bool init()
 		glfwTerminate();
 		return false;
 	}
-	
-	if (!ifs::init(initialWindowWidth, initialWindowHeight)) return false;
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -156,7 +146,14 @@ bool init()
 	ImGui_ImplOpenGL3_Init();
 	ImGui::GetStyle().ScaleAllSizes(2.0f);
 
+	int initialWindowWidth, initialWindowHeight;
+	glfwGetWindowSize(window, &initialWindowWidth, &initialWindowHeight);
+	if (!ifs::init(initialWindowWidth, initialWindowHeight)) return false;
+
 	FileDialog::init(window);
+
+	//for some reason on Windows, the window doesn't detect being maximised and the preview texture size is wrong...
+	onWindowResize(window, initialWindowWidth, initialWindowHeight);
 
 	return true;
 }
