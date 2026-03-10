@@ -517,6 +517,7 @@ kernel void postProcess(global float4* renderTexture, global float4* renderTextu
 
 	pix *= brightness * log10(pix.w) / pix.w;
 	pix.xyz = pow(pix.xyz, 1.0f / gamma) * pix.w;
+	pix.w = 1.0f;
 
 	renderTextureProcessed[i] = clamp(pix, 0.0f, 1.0f);
 }
