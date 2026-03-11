@@ -69,6 +69,7 @@ namespace ifs
 		bool renderSampleNumMatchPreview;
 
 		uint32_t numPreviewSamplesPerFrame;
+		uint32_t actualNumPreviewSamplesThisFrame;
 		uint32_t maxPreviewSamples;
 		uint32_t totalPreviewSamples;
 		uint32_t numRenderSamples;
@@ -1043,9 +1044,20 @@ namespace ifs
 
 	void updateKernelParams()
 	{
-		if (maxPreviewSamples > 0) CLManager::setKernelRange(k_produceSamples, glm::min(numPreviewSamplesPerFrame, maxPreviewSamples - totalPreviewSamples));
-		else CLManager::setKernelRange(k_produceSamples, numPreviewSamplesPerFrame);
+		//if we're at the maximum number of samples, don't run the kernel
+		//if max is 0 then always run the desired number per frame
+		//if running the desired number would go over the max, run the amount to reach the max
+		//otherwise, can safely run the desired amount and not reach max
+		
+		if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
+		else if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame;
+		else
+		{
+			if (totalPreviewSamples + numPreviewSamplesPerFrame > maxPreviewSamples) actualNumPreviewSamplesThisFrame = maxPreviewSamples - totalPreviewSamples;
+			else actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame;
+		}
 
+		CLManager::setKernelRange(k_produceSamples, actualNumPreviewSamplesThisFrame);
 		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture, b_variations, b_colors, b_weights, b_transforms });
 		CLManager::setKernelParamValue(k_produceSamples, 5, currentFlame.numVariations);
 		CLManager::setKernelParamValue(k_produceSamples, 6, initialIterations);
@@ -1072,8 +1084,6 @@ namespace ifs
 
 	void update()
 	{
-		updateKernelParams();
-
 		if (!paused && clearEveryFrame)
 		{
 			clearSamples();
@@ -1086,12 +1096,13 @@ namespace ifs
 			clearSingleFrame = false;
 		}
 
+		updateKernelParams();
+
 		if (!paused && currentFlame.numVariations > 0 && (maxPreviewSamples == 0 || totalPreviewSamples < maxPreviewSamples))
 		{
 			CLManager::runKernel(k_produceSamples);
 			frameNum++;
-			if (maxPreviewSamples > 0 && maxPreviewSamples - totalPreviewSamples < numPreviewSamplesPerFrame) totalPreviewSamples += maxPreviewSamples - totalPreviewSamples;
-			else totalPreviewSamples += numPreviewSamplesPerFrame;
+			totalPreviewSamples += actualNumPreviewSamplesThisFrame;
 			if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
 
 			wantsPostProcess = true;
