@@ -18,40 +18,40 @@ The image below shows an example set of variations after starting the program, a
 
 ### Settings
 * Samples per frame - how many sample points will be calculated every frame of the preview. Higher values make the fractal appear faster, but reduce the interactive frame rate.
+* Max preview samples - how many samples to render in the preview before stopping, can be set to 0 for infinite.
 * Initial iterations - how many iterations should be applied to the sample point before it is rendered. This reduces noise from the random start point of the sample.
 * Iterations - how many iterations should be applied after the initial ones. The position of the sample point will be rendered after each of these iterations, and effectively just increases the number of samples per frame when `initial iterations` is sufficiently high (e.g. 20+).
 * Gamma - the pixel value will be set to `pow(pixel, 1/gamma)` in a post processing step.
 * Darkness - the pixel value will be multiplied by `1/darkness` in a post processing step before gamma. "Darkness" is chosen as opposed to brightness, as the slider is nicer to control this way.
-* Denoising - apply a small blur to the image to reduce the noisyness, though honestly it probably looks better without using this.
-* Faster plotting - Removes use of atomics when plotting points, improving performance when lots of points try to render to the same pixel at the same time but consequently losing the colour from some points.
+* Faster plotting - improves performance when lots of points try to render to the same pixel at the same time but consequently losing the colour from some points (disables atomic addition).
 * Clear every frame - prevents samples from accumulating by resetting the preview buffer every frame.
 * Clear image - resets the preview, clearing all accumulated samples.
 * Reset camera - resets the position of the camera to the centre of the world.
-* Pause - pauses the accumulation of samples. The camera cannot be moved while paused, as moving the view requires re-rendering the fractal.
+* Pause/Resume - pauses/resumes the accumulation of samples. The camera cannot be moved while paused, as moving the view requires re-rendering the fractal.
 * Save flame config - saves the current set of variation settings to a file.
 * Load flame config - loads a set of variation settings from a file.
 * Previous flame - allows going back to the previous flame after randomising or loading from file (in case of accidentally going past a random flame you liked).
 
 ### Render
-* Render resolution - the size in pixels of the output file. This does not affect the preview, which matches the resolution of the window. NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Therefore, higher resolutions have a lower chance of each pixel being rendered to, and are often darker. Compensate for this with the darkness slider or more samples.
+* Render resolution - the size in pixels of the output file. This does not affect the preview, which uses the resolution of the window. NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Therefore, higher resolutions have a lower chance of each pixel being rendered to, and are often darker. Compensate for this with the darkness slider or more samples.
+* Match preview size - forces the output resolution to match the window resolution. Untick to set resolution manually.
 * Number of samples - the total number of samples which will be calculated for the rendered image.
 * Match current preview sample num - forces the number of samples in the rendered image to match how many samples have been calculated so far in the preview. Untick this to set the number of samples manually.
-* Transparent background - renders the output with transparency. Otherwise a black background is set.
 * Save as image - click to select a location to save the image, and then it will be rendered. The terminal window will print out the stage of rendering and a reminder of where the image was saved.
 
-<img width="445" height="749" alt="General settings and rendering to file" src="https://github.com/user-attachments/assets/ee37d9de-63c6-42b2-95bf-01c461c5113e" />
+<img width="439" height="680" alt="left" src="https://github.com/user-attachments/assets/82311180-72b3-4fdf-a2ab-47356eb3e66e" />
 
 ### Variations
 This is this list of variations currently being applied to the sample points.
-* Randomise [value] - randomises this value for each variation in the list. Useful for searching for nice shapes and colour schemes, and forming a gambling addiction.
+* Randomise [value] - randomises this value for each variation in the list. Useful for searching for nice shapes and colour schemes and forming a gambling addiction.
 * Add variation - adds a variation with default settings.
 * Variation - this is the main characteristic of the shape which will be formed, and refers to the list found here: https://flam3.com/flame_draves.pdf#page=16.
 * Colour - the colour associated with the variation.
-* Weight - affects the probability of this variation being chosen by a sample point. Variations with equal weight have equal probability of being chosen. The chance of a variation being chosen is its weight divided by the sum of all weights. E.g. two variations with a weight of 1 will each have a 50/50 chance, weights of 0.5 and 1 have 1/3 and 2/3 respectively.
+* Weight - affects the probability of this variation being chosen by a sample point. The chance of a variation being chosen is its weight divided by the sum of all weights. E.g. two variations with a weight of 1 will each have a 1/2 chance to be chosen, weights of 0.5 and 1 have 1/3 and 2/3 respectively.
 * Rotation, translation and scale - transforms points every time that variation is used. Rotation and scale use the translation position as the centre.
 * Remove - remove this variation from the list.
 
-<img width="429" height="955" alt="Variation settings" src="https://github.com/user-attachments/assets/584a1772-e378-4af4-96af-591758fe8507" />
+<img width="410" height="441" alt="right" src="https://github.com/user-attachments/assets/2b471d6a-4e5b-4f6c-a2a2-110941e55d5c" />
 
 ## Build Dependencies
 * GLFW - https://www.glfw.org/
