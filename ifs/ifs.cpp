@@ -353,10 +353,10 @@ namespace ifs
 		currentFlame.numVariations--;
 
 		//update kernel buffer parameters
-		CLManager::writeBuffer(b_variations, MAX_VARIATIONS - index - 1, currentFlame.variations, index);
-		CLManager::writeBuffer(b_colors, (MAX_VARIATIONS - index - 1) * 3, currentFlame.colors, index);
-		CLManager::writeBuffer(b_weights, MAX_VARIATIONS - index - 1, currentFlame.weights, index);
-		CLManager::writeBuffer(b_transforms, (MAX_VARIATIONS - index - 1) * 6, currentFlame.transforms, index);
+		CLManager::writeBuffer(b_variations, MAX_VARIATIONS, currentFlame.variations);
+		CLManager::writeBuffer(b_colors, MAX_VARIATIONS * 3, currentFlame.colors);
+		CLManager::writeBuffer(b_weights, MAX_VARIATIONS, currentFlame.weights);
+		CLManager::writeBuffer(b_transforms, MAX_VARIATIONS * 6, currentFlame.transforms);
 
 		clearSingleFrame = true;
 	}
