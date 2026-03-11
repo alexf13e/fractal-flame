@@ -5,9 +5,12 @@ The program can be downloaded from the releases page: https://github.com/alexf13
 
 See here for an explanation of how the images are produced: https://flam3.com/flame_draves.pdf.
 
-<img width="1920" height="1080" alt="10000000_18_6_1_1" src="https://github.com/user-attachments/assets/232d68b7-18b5-41a3-a916-459793540ab9" />
-<img width="1920" height="1080" alt="4000000_13_14" src="https://github.com/user-attachments/assets/e86f9404-639c-41e3-a984-2c9dbccb9791" />
-<img width="1920" height="1080" alt="5000000_6_9" src="https://github.com/user-attachments/assets/187c1580-8a65-4377-8ca2-5807531bf008" />
+
+| <img width="3840" height="2160" alt="10000000_13_3" src="https://github.com/user-attachments/assets/549a5a72-1c5e-4f12-9005-1046ec3a4c2d" /> | <img width="3840" height="2160" alt="18480000_16_4_1" src="https://github.com/user-attachments/assets/25e7e38b-6f99-4fb5-a783-e3656819ed7a" /> |
+|-|-|
+| <img width="3840" height="2160" alt="50000000_7_13" src="https://github.com/user-attachments/assets/2c93cb42-e010-40b7-8377-360f1daf654e" /> | <img width="1920" height="1080" alt="6580000_16_18_27_7" src="https://github.com/user-attachments/assets/4863607d-fa2b-49a5-b6e5-6d0709341b05" /> |
+| <img width="1920" height="1080" alt="5000000_6_9" src="https://github.com/user-attachments/assets/187c1580-8a65-4377-8ca2-5807531bf008" /> | <img width="3840" height="2160" alt="10000000_9_3_7" src="https://github.com/user-attachments/assets/019aa88b-ea27-4496-b0eb-268ad219c601" /> |
+| <img width="1920" height="1080" alt="10000000_18_6_1_1" src="https://github.com/user-attachments/assets/232d68b7-18b5-41a3-a916-459793540ab9" /> | <img width="1920" height="1080" alt="4000000_13_14" src="https://github.com/user-attachments/assets/e86f9404-639c-41e3-a984-2c9dbccb9791" /> |
 
 ## Usage
 On startup, 3 random fractals are created. These can be tweaked and added to, with the results being gradually rendered to the screen as a preview.
