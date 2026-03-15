@@ -4,13 +4,16 @@
 #include <stack>
 #include <fstream>
 #include <sstream>
+#include <list>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #include "imgui.h"
 
-#include "glm/gtc/constants.hpp"
-#include "glm/gtx/matrix_transform_2d.hpp"
+#include <glm/gtc/constants.hpp>
+#include <glm/gtx/matrix_transform_2d.hpp>
+#include <glm/gtx/norm.hpp>
+#include <glm/gtx/vector_angle.hpp>
 
 #define CL_MANAGER_IMPL
 #define CL_MANAGER_GL
@@ -42,8 +45,9 @@ namespace ifs
 
 	namespace
 	{
-		ShaderProgram shFullScreenTri;
+		ShaderProgram shFullScreenTri, shLines;
 		GLuint vao_fullScreenTri;
+		GLuint vao_lines, vbo_guideLines2x2, vbo_guideLines3x3, vbo_mouseLine;
 
 		std::string b_previewTexture = "previewTexture";
 		std::string glb_previewTextureProcessed = "previewTextureProcessed";
@@ -67,6 +71,7 @@ namespace ifs
 		uint32_t renderTexWidth, renderTexHeight;
 		bool renderTexSizeMatchPreview;
 		bool renderSampleNumMatchPreview;
+		uint32_t renderNextFrame;
 
 		uint32_t numPreviewSamplesPerFrame;
 		uint32_t actualNumPreviewSamplesThisFrame;
@@ -77,6 +82,9 @@ namespace ifs
 		uint32_t iterations;
 		float gamma;
 		float darkness;
+		uint32_t guideLineNum;
+
+		bool drawMouseLine;
 
 		bool clearEveryFrame;
 		bool clearSingleFrame;
@@ -152,6 +160,27 @@ namespace ifs
 		};
 
 		uint32_t NUM_VALID_VARIATIONS = VARIATION_NAMES.size();
+
+		std::unordered_map<uint32_t, const char*> GUIDELINE_NAMES = {
+			{0, "None"},
+			{1, "2x2"},
+			{2, "3x3"}
+		};
+
+		uint32_t NUM_GUIDELINE_NAMES = GUIDELINE_NAMES.size();
+
+
+		constexpr uint32_t MIN_PREVIEW_SAMPLES = 0;
+		constexpr uint32_t MAX_PREVIEW_SAMPLES = 1000000;
+		constexpr float MIN_GAMMA = 0.01f;
+		constexpr float MAX_GAMMA = 10.0f;
+		constexpr float MIN_DARKNESS = 0.1f;
+		constexpr float MAX_DARKNESS = 10.0f;
+		constexpr float MIN_CAMERA_ZOOM = 0.001f;
+		constexpr float MAX_CAMERA_ZOOM = 50.0f;
+		
+		constexpr uint32_t infoLength = 5;
+		std::list<std::string> info;
 	}
 
 	void acquireGLObjects()
@@ -194,13 +223,78 @@ namespace ifs
 		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_previewTextureProcessed].clBuffer);
 	}
 
-	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
+	void updateCam(const glm::vec2& deltaPos, const float deltaZoom, const float deltaAngle)
 	{
 		if (paused) return;
 
 		cam.updatePosition(deltaPos);
-		cam.updateView(deltaZoom);
+		cam.updateZoom(deltaZoom);
+		cam.updateRotation(deltaAngle);
 		clearSingleFrame = true;
+	}
+
+	void updateCamPositionMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
+	{
+		if (paused) return;
+
+		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		currentMousePosNDC.y = 1.0f - currentMousePosNDC.y;
+		prevMousePosNDC.y = 1.0f - prevMousePosNDC.y;
+		currentMousePosNDC *= cam.view;
+		prevMousePosNDC *= cam.view;
+		
+		//pan view so that the position under the mouse stays attached to the mouse
+		//camera wants to move opposite direction to mouse, so invert
+		glm::vec2 deltaPos = prevMousePosNDC - currentMousePosNDC;
+		deltaPos = glm::rotateZ(glm::vec3(deltaPos, 0.0f), cam.angle);
+		if (glm::length2(deltaPos) > 0.0f) updateCam(deltaPos, 1.0f, 0.0f);
+	}
+
+	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
+	{
+		if (paused) return;
+		
+		//rotate and zoom the view such that the point under the mouse stays attached to the mouse, and the centre of the screen stays at the centre
+		//the mouse point wants to be NDC so that 0,0 is in screen centre
+		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		currentMousePosNDC *= cam.view;
+		prevMousePosNDC *= cam.view;
+
+		float deltaZoom = 1.0f;
+		float prevMouseLength = glm::length(prevMousePosNDC);
+		if (prevMouseLength > 0.0f)
+		{
+			deltaZoom = glm::length(currentMousePosNDC) / prevMouseLength;
+		}
+
+		if (deltaZoom != 1.0f) updateCam(glm::vec2(0.0f), deltaZoom, 0.0f);
+	}
+
+	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
+	{
+		if (paused) return;
+
+		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+		currentMousePosNDC *= cam.view;
+		prevMousePosNDC *= cam.view;
+
+		float prevMouseLength = glm::length(prevMousePosNDC);
+		float currentMouseLength = glm::length(currentMousePosNDC);
+
+		float deltaAngle = 0.0f;
+		if (currentMouseLength > 0.0f && prevMouseLength > 0.0f)
+		{
+			float cosTheta = glm::dot(currentMousePosNDC / currentMouseLength, prevMousePosNDC / prevMouseLength);
+			if (cosTheta < 1.0f)
+			{
+				deltaAngle = -glm::acos(cosTheta) * glm::sign(glm::determinant(glm::mat2(currentMousePosNDC, prevMousePosNDC)));
+			}
+		}
+
+		if (deltaAngle != 0.0f) updateCam(glm::vec2(0.0f), 1.0f, deltaAngle);
 	}
 
 	void resetCam()
@@ -212,6 +306,11 @@ namespace ifs
 	float getCamZoom()
 	{
 		return cam.zoom;
+	}
+
+	float getCamAngle()
+	{
+		return cam.angle;
 	}
 
 	bool getPaused()
@@ -287,6 +386,20 @@ namespace ifs
 		glUniform1f(glGetUniformLocation(shFullScreenTri.getID(), "brightness"), 1.0f / darkness);
 		glUseProgram(0);
 		wantsPostProcess = true;
+	}
+
+	void enableDrawMouseLine(const glm::vec2& currentMousePosScreen)
+	{
+		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
+
+		drawMouseLine = true;
+		//set line to be drawn from screen centre to mouse as visual aid
+		std::vector<float> mouseLine = { 0.0f, 0.0f, currentMousePosNDC.x, -currentMousePosNDC.y };
+		glBindVertexArray(vao_lines);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_mouseLine);
+		glBufferData(GL_ARRAY_BUFFER, mouseLine.size() * sizeof(float), mouseLine.data(), GL_STATIC_DRAW);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
 	}
 
 	void addDefaultVariation()
@@ -377,7 +490,7 @@ namespace ifs
 
 		if (!valid)
 		{
-			std::cout << "Tried to set invalid variation: " << variation << std::endl;
+			appendInfo(std::string("Tried to set invalid variation: ") + std::to_string(variation));
 			return;
 		}
 
@@ -441,7 +554,7 @@ namespace ifs
 	{
 		if (index >= currentFlame.numVariations) return;
 
-		currentFlame.rotations[index] = r;
+		currentFlame.rotations[index] = glm::mod(r, glm::two_pi<float>());
 		updateVariationTransform(index);
 	}
 
@@ -490,7 +603,7 @@ namespace ifs
 		std::ofstream fileStream(fileDir);
 		if (!fileStream.is_open())
 		{
-			std::cout << "Failed to save flame config to file: " << fileDir << std::endl;
+			appendInfo(std::string("Failed to save flame config to file: ") + fileDir);
 			return;
 		}
 
@@ -514,7 +627,7 @@ namespace ifs
 	void loadFlameFile()
 	{
 		auto printErrInvalidData = []() {
-			std::cout << "Flame config file contains invalid data, loading cancelled" << std::endl;
+			appendInfo("Flame config file contains invalid data, loading cancelled");
 		};
 
 		auto checkVarNum = [&](const std::string& val, uint32_t* dest) {
@@ -582,7 +695,7 @@ namespace ifs
 		std::ifstream fileStream(fileDir);
 		if (!fileStream.is_open())
 		{
-			std::cout << "Failed to access flame config file: " << fileDir << std::endl;
+			appendInfo(std::string("Failed to access flame config file: ") + fileDir);
 			return;
 		}
 
@@ -616,7 +729,7 @@ namespace ifs
 
 			if (values.size() > 10) //variation number, color L, color C, color h, weight, translation x, y, rotation, scale x, y
 			{
-				std::cout << "Flame config file does not match expected format, loading cancelled" << std::endl;
+				appendInfo("Flame config file does not match expected format, loading cancelled");
 				return;
 			}
 
@@ -651,14 +764,57 @@ namespace ifs
 
 	void createGUI()
 	{
-		constexpr float UI_SAMPLE_SETTINGS_WIDTH = 200.0f;
-		constexpr float UI_VARIATION_SETTINGS_WIDTH = 300.0f;
+		float UI_SAMPLE_SETTINGS_WIDTH = 12.5f * ImGui::GetFontSize();
+		float UI_VARIATION_SETTINGS_WIDTH = 18.0f * ImGui::GetFontSize();
 
 		ImGui::SetNextWindowPos(ImVec2(0,0));
 		ImGui::SetNextWindowSizeConstraints(ImVec2(10, 10), ImVec2(previewTexWidth, previewTexHeight));
+		ImGui::SetNextWindowSize(ImVec2(0, previewTexHeight), ImGuiCond_Once);
 		ImGui::SetNextWindowBgAlpha(0.3f);
-		ImGui::Begin("Fractal Flame IFS", NULL);
+		ImGui::Begin("Menu", NULL);
+
+		ImGui::SeparatorText("Controls");
+		ImGui::Columns(2);
+
+		ImGui::Text("Move camera");
+		ImGui::Text("Rotate camera");
+		ImGui::Text("Zoom camera");
+		ImGui::Text("Move camera");
+		ImGui::Text("Zoom camera");
+		ImGui::Text("Rotate camera");
+
+		ImGui::NextColumn();
+
+		ImGui::Text("W S A D");
+		ImGui::Text("Q E");
+		ImGui::Text("R F");
+		ImGui::Text("Left click");
+		ImGui::Text("Shift + left click");
+		ImGui::Text("Ctrl + left click");
+		
+		ImGui::Spacing();
+
+		ImGui::Columns(1);
+		ImGui::SeparatorText("Settings");
+
 		ImGui::PushItemWidth(UI_SAMPLE_SETTINGS_WIDTH);
+
+		if (ImGui::Button(paused ? "Resume" : "Pause", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
+		{
+			paused = !paused;
+		}
+
+		if (ImGui::Button("Clear image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
+		{
+			clearSingleFrame = true;
+		}
+		
+		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
+
+		if (ImGui::Checkbox("Faster plotting (less accurate)", &plotWithoutAtomic))
+		{
+			clearSingleFrame = true;
+		}
 
 		int temp = numPreviewSamplesPerFrame / 1000;
 		if (ImGui::InputInt("Samples per frame (thousand)", &temp, 10, 100))
@@ -667,7 +823,7 @@ namespace ifs
 		}
 
 		temp = maxPreviewSamples / 1000;
-		if (ImGui::DragInt("Max preview samples (thousand)", &temp, 20.0f, 0, 1000000))
+		if (ImGui::DragInt("Max preview samples (thousand)", &temp, 20.0f, MIN_PREVIEW_SAMPLES, MAX_PREVIEW_SAMPLES, "%d", ImGuiSliderFlags_ClampOnInput))
 		{
 			setMaxPreviewSamples(glm::max(temp, 0) * 1000);
 		}
@@ -689,80 +845,86 @@ namespace ifs
 			setIterations(std::max(temp, 0));
 		}
 
-		if (ImGui::DragFloat("Gamma", &gamma, 0.01f, 0.01f, 10.0f))
+		ImGui::Spacing();
+
+		if (ImGui::DragFloat("Gamma", &gamma, 0.01f, MIN_GAMMA, MAX_GAMMA, "%.3f", ImGuiSliderFlags_ClampOnInput))
 		{
 			setGamma(gamma);
 		}
 
-		if (ImGui::DragFloat("Darkness", &darkness, 0.01f, 0.1f, 10.0f))
+		if (ImGui::DragFloat("Darkness", &darkness, 0.01f, MIN_DARKNESS, MAX_DARKNESS, "%.3f", ImGuiSliderFlags_ClampOnInput))
 		{
 			setDarkness(darkness);
 		}
 
-		if (ImGui::Checkbox("Faster plotting (less accurate)", &plotWithoutAtomic))
-		{
-			clearSingleFrame = true;
-		}
+		ImGui::Spacing();
 
-		ImGui::PopItemWidth();
+		ImGui::SeparatorText("Camera");
 
-		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
-
-		if (ImGui::Button("Clear image"))
-		{
-			clearSingleFrame = true;
-		}
-
-		if (ImGui::Button("Reset camera"))
+		if (ImGui::Button("Reset camera", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
 			resetCam();
 		}
 
-		if (ImGui::Button(paused ? "Resume" : "Pause"))
+		glm::vec2 camPos = cam.position;
+		if (ImGui::DragFloat2("Camera position", &camPos.x, 2.0f / previewTexWidth * cam.view.x))
 		{
-			paused = !paused;
+			//make the x and y siders move the camera in the screen's x and y directions, in the same way as though
+			//dragging the view
+			glm::vec3 desiredDelta = glm::vec3(cam.position - camPos, 0.0f);
+			desiredDelta = glm::rotateZ(desiredDelta, cam.angle);
+
+			cam.updatePosition(desiredDelta);
+			clearSingleFrame = true;
 		}
 
-		ImGui::Spacing();
-
-		if (ImGui::Button("Save flame config"))
+		float camZoom = cam.zoom;
+		if (ImGui::DragFloat("Camera zoom", &camZoom, 0.025f, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_ClampOnInput))
 		{
-			saveFlameFile();
+			cam.updateZoom(camZoom / cam.zoom);
+			clearSingleFrame = true;
 		}
 
-		ImGui::SameLine();
-
-		if (ImGui::Button("Load flame config"))
+		float camAngle = glm::degrees(cam.angle);
+		if (ImGui::DragFloat("Camera angle", &camAngle, 0.75f))
 		{
-			loadFlameFile();
+			camAngle = glm::radians(camAngle);
+			cam.updateRotation(camAngle - cam.angle);
+			clearSingleFrame = true;
 		}
 
-		if (previousFlames.size() > 0)
+		if (ImGui::BeginCombo("Guidelines", GUIDELINE_NAMES[guideLineNum]))
 		{
-			ImGui::SameLine();
-
-			if (ImGui::Button("Previous flame"))
+			for (uint32_t j = 0; j < NUM_GUIDELINE_NAMES; j++)
 			{
-				loadFlameConfig(previousFlames.top(), false);
-				previousFlames.pop();
+				bool is_selected = guideLineNum == j;
+				if (ImGui::Selectable(GUIDELINE_NAMES[j], is_selected))
+				{
+					guideLineNum = j;
+				}
+				if (is_selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
 			}
+			ImGui::EndCombo();
 		}
 
 		ImGui::Spacing();
 
 		ImGui::SeparatorText("Render");
 
-		ImGui::PushItemWidth(150.0f);
-		
 		int res[2] = { (int)renderTexWidth, (int)renderTexHeight };
 
-		if (ImGui::InputInt2("Render resolution", res, renderTexSizeMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
+		if (renderTexSizeMatchPreview) ImGui::BeginDisabled();
+		if (ImGui::InputInt2("Render resolution", res))
 		{
-			if (res[0] < 1) res[0] = 1;
-			if (res[1] < 1) res[1] = 1;
+			res[0] = glm::clamp(res[0], 1, 10000);
+			res[1] = glm::clamp(res[1], 1, 10000);
 			renderTexWidth = res[0];
 			renderTexHeight = res[1];
 		}
+		if (renderTexSizeMatchPreview) ImGui::EndDisabled();
 
 		if (ImGui::Checkbox("Match preview size", &renderTexSizeMatchPreview) && renderTexSizeMatchPreview)
 		{
@@ -771,11 +933,13 @@ namespace ifs
 		}
 
 		int n = numRenderSamples / 1000;
-		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10, renderSampleNumMatchPreview ? ImGuiInputTextFlags_ReadOnly : 0))
+		if (renderSampleNumMatchPreview) ImGui::BeginDisabled();
+		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10))
 		{
 			if (n < 0) n = 0;
 			numRenderSamples = n * 1000;
 		}
+		if (renderSampleNumMatchPreview) ImGui::EndDisabled();
 
 		ImGui::PopItemWidth();
 
@@ -784,23 +948,55 @@ namespace ifs
 			numRenderSamples = totalPreviewSamples;
 		}
 
-		if (ImGui::Button("Save as image"))
+		if (ImGui::Button("Save as image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
-			render();
+			renderNextFrame = 2; //to allow imgui to display info that saving has started, delay actually starting until next frame
+			appendInfo("Saving image...");
 		}
+		
+		ImGui::Spacing();
+		
+		ImGui::SeparatorText("Info");
+		std::string infoCombined = "";
+		for (const std::string& i : info)
+		{
+			infoCombined += i + "\n";
+		}
+		ImGui::TextWrapped(infoCombined.c_str());
 		ImGui::End();
 
 
-		ImGui::SetNextWindowPos(ImVec2(previewTexWidth, 0), 0, ImVec2(1, 0));
+		ImGui::SetNextWindowPos(ImVec2(previewTexWidth, 0), ImGuiCond_None, ImVec2(1, 0));
 		ImGui::SetNextWindowSizeConstraints(ImVec2(10, 10), ImVec2(previewTexWidth, previewTexHeight));
+		ImGui::SetNextWindowSize(ImVec2(0, previewTexHeight), ImGuiCond_Once);
 		ImGui::SetNextWindowBgAlpha(0.3f);
 		ImGui::Begin("Variations", NULL);
 
 		if (currentFlame.numVariations > 0)
 		{
-			ImGui::Text("Randomise");
+			if (ImGui::Button("Save flame config"))
+			{
+				saveFlameFile();
+			}
 
-			const float BUTTON_WIDTH = 100.0f;
+			ImGui::SameLine();
+
+			if (ImGui::Button("Load flame config"))
+			{
+				loadFlameFile();
+			}
+
+			if (previousFlames.size() == 0) ImGui::BeginDisabled();
+			if (ImGui::Button("Previous flame"))
+			{
+				loadFlameConfig(previousFlames.top(), false);
+				previousFlames.pop();
+			}
+			if (previousFlames.size() == 0) ImGui::EndDisabled();
+			
+			ImGui::SeparatorText("Randomise");
+
+			const float BUTTON_WIDTH = 8.0f * ImGui::GetFontSize();
 
 			if (ImGui::Button("Variations", ImVec2(BUTTON_WIDTH, 0.0f)))
 			{
@@ -969,7 +1165,48 @@ namespace ifs
 	bool init(uint32_t tw, uint32_t th)
 	{
 		if (!shFullScreenTri.init("./shaders/fullScreenTri.vert", "./shaders/ifs.frag")) return false;
+		if (!shLines.init("./shaders/line.vert", "./shaders/line.frag")) return false;
+
 		glGenVertexArrays(1, &vao_fullScreenTri);
+		
+		glGenVertexArrays(1, &vao_lines);
+		glBindVertexArray(vao_lines);
+		glGenBuffers(1, &vbo_guideLines2x2);
+		glGenBuffers(1, &vbo_guideLines3x3);
+		glGenBuffers(1, &vbo_mouseLine);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_guideLines2x2);
+
+		std::vector<float> lines = { 
+			-1.0f, 0.0f,
+			1.0f, 0.0f,
+			0.0f, -1.0f,
+			0.0f, 1.0f
+		};
+
+		glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(float), lines.data(), GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_guideLines3x3);
+
+		float oneThird = 1.0f / 3.0f;
+		lines = {
+			-1.0f, -oneThird,
+			1.0f, -oneThird,
+			-1.0f, oneThird,
+			1.0f, oneThird,
+			-oneThird, -1.0f,
+			-oneThird, 1.0f,
+			oneThird, -1.0f,
+			oneThird, 1.0f
+		};
+
+		glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(float), lines.data(), GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+
+		glEnable(GL_BLEND);
+
 
 		for (uint32_t i = 0; i < MAX_VARIATIONS; i++)
 		{
@@ -1026,6 +1263,7 @@ namespace ifs
 		setIterations(5);
 		setGamma(2.2f);
 		setDarkness(2.0f);
+		guideLineNum = 0;
 
 		clearEveryFrame = false;
 		clearSingleFrame = false;
@@ -1083,6 +1321,13 @@ namespace ifs
 
 	void update()
 	{
+		if (renderNextFrame == 1)
+		{
+			render();
+		}
+
+		if (renderNextFrame > 0) renderNextFrame--;
+
 		if (!paused && clearEveryFrame)
 		{
 			clearSamples();
@@ -1132,8 +1377,50 @@ namespace ifs
 		glUseProgram(shFullScreenTri.getID());
 		glBindVertexArray(vao_fullScreenTri);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
+
+		//draw guidelines if requested
+		if (guideLineNum != 0)
+		{
+			glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);
+			glUseProgram(shLines.getID());
+			glBindVertexArray(vao_lines);
+			if (guideLineNum == 1)
+			{
+				glBindBuffer(GL_ARRAY_BUFFER, vbo_guideLines2x2);
+				GLint attribLocation = glGetAttribLocation(shLines.getID(), "vs_position");
+				glEnableVertexAttribArray(attribLocation);
+				glVertexAttribPointer(attribLocation, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+			}
+			if (guideLineNum == 2)
+			{
+				glBindBuffer(GL_ARRAY_BUFFER, vbo_guideLines3x3);
+				GLint attribLocation = glGetAttribLocation(shLines.getID(), "vs_position");
+				glEnableVertexAttribArray(attribLocation);
+				glVertexAttribPointer(attribLocation, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+			}
+			glDrawArrays(GL_LINES, 0, guideLineNum * 4);
+			glBlendFunc(GL_ONE, GL_ZERO);
+		}
+
+		//draw mouse line if requested
+		if (drawMouseLine)
+		{
+			glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);
+			glUseProgram(shLines.getID());
+			glBindVertexArray(vao_lines);
+			glBindBuffer(GL_ARRAY_BUFFER, vbo_mouseLine);
+			GLint attribLocation = glGetAttribLocation(shLines.getID(), "vs_position");
+			glEnableVertexAttribArray(attribLocation);
+			glVertexAttribPointer(attribLocation, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+			glDrawArrays(GL_LINES, 0, 4);
+			glBlendFunc(GL_ONE, GL_ZERO);
+
+			drawMouseLine = false;
+		}
+
 		glBindVertexArray(0);
 		glUseProgram(0);
+
 	}
 
 	void render()
@@ -1198,6 +1485,7 @@ namespace ifs
 		delete[] texture;
 
 		std::cout << "Render complete" << std::endl;
+		appendInfo(std::string("Render complete, saved to ") + renderOutputPath);
 
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
 	}
@@ -1242,5 +1530,15 @@ namespace ifs
 
 		rgb = glm::clamp(rgb, 0.0f, 1.0f);
 		return rgb;
+	}
+
+	void appendInfo(const std::string& s)
+	{
+		while (info.size() >= infoLength)
+		{
+			info.pop_front();
+		}
+
+		info.push_back(s);
 	}
 }

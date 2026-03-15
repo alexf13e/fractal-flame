@@ -1,7 +1,10 @@
 #ifndef IFS_H
 #define IFS_H
 
-#include "glm/glm.hpp"
+#include <string>
+
+#include <glm/glm.hpp>
+
 
 namespace ifs
 {
@@ -12,9 +15,13 @@ namespace ifs
 	
 	void createPreviewTexture();
 	
-	void updateCam(const glm::vec2& deltaPos, const float deltaZoom);
+	void updateCam(const glm::vec2& deltaPos, const float deltaZoom, const float deltaAngle);
+	void updateCamPositionMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
+	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
+	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
 	void resetCam();
 	float getCamZoom();
+	float getCamAngle();
 	bool getPaused();
 	bool getMaxSamplesReached();
 
@@ -25,6 +32,7 @@ namespace ifs
 	void setIterations(uint32_t n);
 	void setGamma(float g);
 	void setDarkness(float d);
+	void enableDrawMouseLine(const glm::vec2& currentMousePosScreen);
 
 	void addDefaultVariation();
 	void addRandomVariation();
@@ -55,6 +63,7 @@ namespace ifs
 	uint32_t randomVariationNum();
 	glm::vec3 randomOKLChtoRGB();
 
+	void appendInfo(const std::string& s);
 }
 
 #endif

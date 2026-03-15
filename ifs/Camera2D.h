@@ -2,7 +2,7 @@
 #ifndef CAMERA2D_H
 #define CAMERA2D_H
 
-#include "glm/glm.hpp"
+#include <glm/glm.hpp>
 
 struct mat4wrap
 {
@@ -18,6 +18,7 @@ public:
 	glm::mat4 matView;
 	float ar;
 	float zoom;
+	float angle;
 
 	void setAspectRatio(const float width, const float height);
 	mat4wrap getMatViewCL();
@@ -25,9 +26,10 @@ public:
 	void init(const float width, const float height, const glm::vec2& defaultPos);
 	void reset();
 
+	void updateView(float aspectRatio);
 	void updatePosition(const glm::vec2& deltaPos);
-	glm::vec2 calculateView(float aspectRatio);
-	void updateView(const float deltaZoom);
+	void updateZoom(const float deltaZoom);
+	void updateRotation(const float deltaAngle);
 };
 
 #endif //CAMERA2D_H
