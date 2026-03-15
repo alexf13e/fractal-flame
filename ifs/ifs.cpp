@@ -622,6 +622,9 @@ namespace ifs
 				std::to_string(currentFlame.scales[i].y) <<
 				std::endl;
 		}
+
+		fileStream << std::to_string(cam.position.x) << ", " << std::to_string(cam.position.y) << ", " <<
+			std::to_string(cam.angle) << ", " << std::to_string(cam.zoom) << std::endl;
 	}
 
 	void loadFlameFile()
@@ -715,7 +718,7 @@ namespace ifs
 			return;
 		}
 
-		newFlameConfig.numVariations = lines.size();
+		cam.reset();
 		for (uint32_t i = 0; i < lines.size(); i++)
 		{
 			line = lines[i];
@@ -727,36 +730,52 @@ namespace ifs
 				values.push_back(val);
 			}
 
-			if (values.size() > 10) //variation number, color L, color C, color h, weight, translation x, y, rotation, scale x, y
+			if (values.size() >= 5 && values.size() <= 10) //variation number, color L, color C, color h, weight, [translation x, y, rotation, scale x, y]
+			{
+				//if not all values are provided, set them to a default value
+				newFlameConfig.numVariations++;
+				newFlameConfig.variations[i] = 0;
+				newFlameConfig.colors[i * 3] = 1.0f;
+				newFlameConfig.colors[i * 3 + 1] = 1.0f;
+				newFlameConfig.colors[i * 3 + 2] = 1.0f;
+				newFlameConfig.weights[i] = 1.0f;
+				newFlameConfig.translations[i].x = 0.0f;
+				newFlameConfig.translations[i].y = 0.0f;
+				newFlameConfig.rotations[i] = 0.0f;
+				newFlameConfig.scales[i].x = 1.0f;
+				newFlameConfig.scales[i].y = 1.0f;
+
+				if (values.size() > 0 && !checkVarNum(values[0], &newFlameConfig.variations[i])) return;
+				if (values.size() > 1 && !checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colors[i * 3])) return;
+				if (values.size() > 2 && !checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 1])) return;
+				if (values.size() > 3 && !checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 2])) return;
+				if (values.size() > 4 && !checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) return;
+
+				//transform values don't technically have a valid range, so only checking the string value is a number
+				if (values.size() > 5 && !checkValueFloat(values[5], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].x)) return;
+				if (values.size() > 6 && !checkValueFloat(values[6], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].y)) return;
+				if (values.size() > 7 && !checkValueFloat(values[7], -FLT_MAX, FLT_MAX, &newFlameConfig.rotations[i])) return;
+				if (values.size() > 8 && !checkValueFloat(values[8], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].x)) return;
+				if (values.size() > 9 && !checkValueFloat(values[9], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].y)) return;
+			}
+			else if (values.size() == 4) //camera x, y, angle, zoom
+			{
+				glm::vec2 pos;
+				float angle, zoom;
+				if (!checkValueFloat(values[0], -FLT_MAX, FLT_MAX, &pos.x)) return;
+				if (!checkValueFloat(values[1], -FLT_MAX, FLT_MAX, &pos.y)) return;
+				if (!checkValueFloat(values[2], -FLT_MAX, FLT_MAX, &angle)) return;
+				if (!checkValueFloat(values[3], MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM, &zoom)) return;
+
+				cam.updatePosition(pos);
+				cam.updateRotation(angle);
+				cam.updateZoom(zoom);
+			}
+			else
 			{
 				appendInfo("Flame config file does not match expected format, loading cancelled");
 				return;
 			}
-
-			//if not all values are provided, set them to a default value
-			newFlameConfig.variations[i] = 0;
-			newFlameConfig.colors[i * 3] = 1.0f;
-			newFlameConfig.colors[i * 3 + 1] = 1.0f;
-			newFlameConfig.colors[i * 3 + 2] = 1.0f;
-			newFlameConfig.weights[i] = 1.0f;
-			newFlameConfig.translations[i].x = 0.0f;
-			newFlameConfig.translations[i].y = 0.0f;
-			newFlameConfig.rotations[i] = 0.0f;
-			newFlameConfig.scales[i].x = 1.0f;
-			newFlameConfig.scales[i].y = 1.0f;
-
-			if (values.size() > 0 && !checkVarNum(values[0], &newFlameConfig.variations[i])) 							{ printErrInvalidData(); return; }
-			if (values.size() > 1 && !checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colors[i * 3])) 			{ printErrInvalidData(); return; }
-			if (values.size() > 2 && !checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 1]))		{ printErrInvalidData(); return; }
-			if (values.size() > 3 && !checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 2])) 		{ printErrInvalidData(); return; }
-			if (values.size() > 4 && !checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) 				{ printErrInvalidData(); return; }
-			
-			//transform values don't technically have a valid range, so only checking the string value is a number
-			if (values.size() > 5 && !checkValueFloat(values[5], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].x)) { printErrInvalidData(); return; }
-			if (values.size() > 6 && !checkValueFloat(values[6], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].y)) { printErrInvalidData(); return; }
-			if (values.size() > 7 && !checkValueFloat(values[7], -FLT_MAX, FLT_MAX, &newFlameConfig.rotations[i])) 		{ printErrInvalidData(); return; }
-			if (values.size() > 8 && !checkValueFloat(values[8], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].x)) 		{ printErrInvalidData(); return; }
-			if (values.size() > 9 && !checkValueFloat(values[9], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].y)) 		{ printErrInvalidData(); return; }
 		}
 
 		loadFlameConfig(newFlameConfig);
@@ -779,9 +798,9 @@ namespace ifs
 		ImGui::Text("Move camera");
 		ImGui::Text("Rotate camera");
 		ImGui::Text("Zoom camera");
-		ImGui::Text("Move camera");
-		ImGui::Text("Zoom camera");
-		ImGui::Text("Rotate camera");
+		ImGui::Text("Move fractal");
+		ImGui::Text("Zoom fractal");
+		ImGui::Text("Rotate fractal");
 
 		ImGui::NextColumn();
 
@@ -792,9 +811,11 @@ namespace ifs
 		ImGui::Text("Shift + left click");
 		ImGui::Text("Ctrl + left click");
 		
+		ImGui::Columns(1);
+
+		ImGui::TextLinkOpenURL("More Info on GitHub", "https://github.com/alexf13e/fractal-flame#usage");
 		ImGui::Spacing();
 
-		ImGui::Columns(1);
 		ImGui::SeparatorText("Settings");
 
 		ImGui::PushItemWidth(UI_SAMPLE_SETTINGS_WIDTH);
@@ -840,7 +861,7 @@ namespace ifs
 		}
 
 		temp = iterations;
-		if (ImGui::InputInt("Iterations", &temp))
+		if (ImGui::InputInt("Drawing iterations", &temp))
 		{
 			setIterations(std::max(temp, 0));
 		}
@@ -996,7 +1017,7 @@ namespace ifs
 			
 			ImGui::SeparatorText("Randomise");
 
-			const float BUTTON_WIDTH = 8.0f * ImGui::GetFontSize();
+			const float BUTTON_WIDTH = 7.5f * ImGui::GetFontSize();
 
 			if (ImGui::Button("Variations", ImVec2(BUTTON_WIDTH, 0.0f)))
 			{

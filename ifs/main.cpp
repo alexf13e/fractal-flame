@@ -201,14 +201,14 @@ bool update()
 
 	//Camera controls
 	glm::vec4 moveInputs = glm::vec4(0.0f);
-	if (keyMap.at(GLFW_KEY_W).getHeld()) moveInputs.y -= 1.0f;
-	if (keyMap.at(GLFW_KEY_S).getHeld()) moveInputs.y += 1.0f;
-	if (keyMap.at(GLFW_KEY_A).getHeld()) moveInputs.x += 1.0f;
-	if (keyMap.at(GLFW_KEY_D).getHeld()) moveInputs.x -= 1.0f;
+	if (keyMap.at(GLFW_KEY_W).getHeld()) moveInputs.y += 1.0f;
+	if (keyMap.at(GLFW_KEY_S).getHeld()) moveInputs.y -= 1.0f;
+	if (keyMap.at(GLFW_KEY_A).getHeld()) moveInputs.x -= 1.0f;
+	if (keyMap.at(GLFW_KEY_D).getHeld()) moveInputs.x += 1.0f;
 	if (keyMap.at(GLFW_KEY_F).getHeld()) moveInputs.z -= 1.0f;
 	if (keyMap.at(GLFW_KEY_R).getHeld()) moveInputs.z += 1.0f;
-	if (keyMap.at(GLFW_KEY_Q).getHeld()) moveInputs.w -= 1.0f;
-	if (keyMap.at(GLFW_KEY_E).getHeld()) moveInputs.w += 1.0f;
+	if (keyMap.at(GLFW_KEY_Q).getHeld()) moveInputs.w += 1.0f;
+	if (keyMap.at(GLFW_KEY_E).getHeld()) moveInputs.w -= 1.0f;
 
 	if (keyMap.at(GLFW_KEY_C).getReleased()) moveMult *= 2.0f;
 	if (keyMap.at(GLFW_KEY_X).getReleased()) moveMult *= 0.5f;
