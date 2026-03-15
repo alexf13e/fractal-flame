@@ -36,6 +36,7 @@ Most boxes containing numbers can be clicked and dragged to change them, and ctr
 ### Camera
 * Reset camera - resets the position of the camera to the centre of the world.
 * Postion/zoom/angle - changes the respective values for the camera.
+* Guidelines - draw an overlay with lines showing to help positioning the fractal within the frame. These lines are not drawn on the image when saving.
 
 ### Render
 * Render resolution - the size in pixels of the output file. This does not affect the preview, which uses the resolution of the window. NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, and are often darker. Compensate for this with the darkness slider or more samples.
