@@ -312,11 +312,20 @@ namespace CLManager
         bool success = true;
         for (const std::string& bufferName : bufferNames)
         {
-            int error = kernels[kernelName].setArg(argStartNum, buffers[bufferName]);
-            if (error != CL_SUCCESS)
+            try
+            {
+                int error = kernels[kernelName].setArg(argStartNum, buffers[bufferName]);
+                if (error != CL_SUCCESS)
+                {
+                    std::cout << "error setting kernel buffer parameter " << bufferName << " at position " << argStartNum
+                        << " in kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                    success = false;
+                }
+            }
+            catch (cl::Error err)
             {
                 std::cout << "error setting kernel buffer parameter " << bufferName << " at position " << argStartNum
-                    << " in kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                    << " in kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
                 success = false;
             }
 
@@ -335,14 +344,23 @@ namespace CLManager
             return false;
         }
 
-        int error = kernels[kernelName].setArg(argStartNum, numElements * sizeof(T), NULL);
-        if (error != CL_SUCCESS)
+        try
+        {
+            int error = kernels[kernelName].setArg(argStartNum, numElements * sizeof(T), NULL);
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error setting kernel local parameter at position " << argStartNum << " in kernel "
+                    << kernelName << ": " << getErrorString(error) << std::endl;
+                return false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error setting kernel local parameter at position " << argStartNum << " in kernel "
-                << kernelName << ": " << getErrorString(error) << std::endl;
+                << kernelName << ": " << getErrorString(err.err()) << std::endl;
             return false;
         }
-
+        
         return true;
     }
 
@@ -355,11 +373,20 @@ namespace CLManager
             return false;
         }
 
-        int error = kernels[kernelName].setArg(argStartNum, sizeof(T), (void*)&value);
-        if (error != CL_SUCCESS)
+        try
+        {
+            int error = kernels[kernelName].setArg(argStartNum, sizeof(T), (void*)&value);
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error setting kernel value parameter at position " << argStartNum << " in kernel "
+                    << kernelName << ": " << getErrorString(error) << std::endl;
+                return false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error setting kernel value parameter at position " << argStartNum << " in kernel "
-                << kernelName << ": " << getErrorString(error) << std::endl;
+                << kernelName << ": " << getErrorString(err.err()) << std::endl;
             return false;
         }
 
@@ -401,7 +428,6 @@ namespace CLManager
             std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
-        
         #else
         try
         {
@@ -420,6 +446,8 @@ namespace CLManager
             success = false;
         }
         #endif
+
+        if (success == false) return false;
 
         try
         {
@@ -449,12 +477,23 @@ namespace CLManager
     {
         //if buffer already exists, will be automatically deleted when existing cl::Buffer goes out of scope.
         //creating a buffer with the same name more than once is allowed for easy resizing
+
+        //check the amount of memory can be allocated
+        uint64_t numBytes = numElements * sizeof(T);
+        uint64_t maxAllocationSize = device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
+        if (numBytes > maxAllocationSize)
+        {
+            std::cout << "could not create buffer " << bufferName << " as requested allocation of " << numBytes
+                << " bytes exceeds max allocation size of " << maxAllocationSize << " bytes" << std::endl;
+            return false;
+        }
+
         int error = 0;
         buffers[bufferName] = cl::Buffer(context, CL_MEM_READ_WRITE, numElements * sizeof(T), nullptr, &error);
 
         if (error != CL_SUCCESS)
         {
-            std::cout << "error creating buffer: " << bufferName << " with " << numElements << " elements: "
+            std::cout << "error creating buffer " << bufferName << " with " << numElements << " elements: "
                 << getErrorString(error) << std::endl;
             return false;
         }
@@ -482,21 +521,44 @@ namespace CLManager
         }
         
         bool success = true;
-        int error = queue.enqueueReadBuffer(buffers[bufferName], true, offset * sizeof(T), numElements * sizeof(T),
-            (void*)dest);
-        if (error != CL_SUCCESS)
+        int error;
+        try
         {
-            std::cout << "error reading buffer " << bufferName << ": " << getErrorString(error) << std::endl;
+            error = queue.enqueueReadBuffer(buffers[bufferName], true, offset * sizeof(T), numElements * sizeof(T),
+                (void*)dest);
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error reading buffer " << bufferName << ": " << getErrorString(error) << std::endl;
+                std::cout << "attempted to read " << std::to_string(numElements * sizeof(T)) << " bytes at byte offset "
+                    << std::to_string(offset * sizeof(T)) << " from buffer holding " << bufferMemUsage[bufferName]
+                    << " bytes" << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error reading buffer " << bufferName << ": " << getErrorString(err.err()) << std::endl;
             std::cout << "attempted to read " << std::to_string(numElements * sizeof(T)) << " bytes at byte offset "
                 << std::to_string(offset * sizeof(T)) << " from buffer holding " << bufferMemUsage[bufferName]
                 << " bytes" << std::endl;
             success = false;
         }
 
-        error = queue.finish();
-        if (error != CL_SUCCESS)
+        if (success == false) return false;
+        
+        try
         {
-            std::cout << "error finishing queue reading buffer " << bufferName << ": " << getErrorString(error)
+            error = queue.finish();
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error finishing queue reading buffer " << bufferName << ": " << getErrorString(error)
+                    << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error finishing queue reading buffer " << bufferName << ": " << getErrorString(err.err())
                 << std::endl;
             success = false;
         }
@@ -514,18 +576,38 @@ namespace CLManager
         }
 
         bool success = true;
-        int error = queue.enqueueWriteBuffer(buffers[bufferName], true, offset * sizeof(T), numElements * sizeof(T),
-            (void*)data);
-        if (error != CL_SUCCESS)
+        int error;
+        try
         {
-            std::cout << "error writing buffer " << bufferName << ": " << getErrorString(error) << std::endl;
+            error = queue.enqueueWriteBuffer(buffers[bufferName], true, offset * sizeof(T), numElements * sizeof(T),
+                (void*)data);
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error writing buffer " << bufferName << ": " << getErrorString(error) << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error writing buffer " << bufferName << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
+        
+        if (success == false) return false;
 
-        error = queue.finish();
-        if (error != CL_SUCCESS)
+        try
         {
-            std::cout << "error finishing queue writing buffer " << bufferName << ": " << getErrorString(error)
+            error = queue.finish();
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error finishing queue writing buffer " << bufferName << ": " << getErrorString(error)
+                    << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error finishing queue writing buffer " << bufferName << ": " << getErrorString(err.err())
                 << std::endl;
             success = false;
         }
@@ -543,19 +625,40 @@ namespace CLManager
         }
 
         bool success = true;
-        int error = queue.enqueueFillBuffer(buffers[bufferName], value, 0, numElements * sizeof(T));
-        if (error != CL_SUCCESS)
+        int error;
+        try
         {
-            std::cout << "error filling buffer " << bufferName << " of size " << numElements << ": "
-                << getErrorString(error) << std::endl;
+            error = queue.enqueueFillBuffer(buffers[bufferName], value, 0, numElements * sizeof(T));
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error filling buffer " << bufferName << " with " << numElements << " elements: "
+                    << getErrorString(error) << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error filling buffer " << bufferName << " with " << numElements << " elements: "
+                << getErrorString(err.err()) << std::endl;
             success = false;
         }
 
-        error = queue.finish();
-        if (error != CL_SUCCESS)
+        if (success == false) return false;
+
+        try
+        {
+            error = queue.finish();
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error finishing queue filling buffer " << bufferName << " of size " << numElements
+                    << ": " << getErrorString(error) << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error finishing queue filling buffer " << bufferName << " of size " << numElements
-                << ": " << getErrorString(error) << std::endl;
+                << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
 
@@ -579,21 +682,43 @@ namespace CLManager
         }
 
         bool success = true;
-        int error = queue.enqueueCopyBuffer(buffers[src], buffers[dst], srcOffset * sizeof(T), dstOffset * sizeof(T),
-            numElements * sizeof(T));
-        if (error != CL_SUCCESS)
+        int error;
+        try {
+            error = queue.enqueueCopyBuffer(buffers[src], buffers[dst], srcOffset * sizeof(T), dstOffset * sizeof(T),
+               numElements * sizeof(T));
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error enqueueing copying buffer " << src << "[" << srcOffset << ":" << numElements << "] to "
+                    << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
+                    << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error enqueueing copying buffer " << src << "[" << srcOffset << ":" << numElements << "] to "
-                << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
+                << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
                 << std::endl;
             success = false;
         }
 
-        error = queue.finish();
-        if (error != CL_SUCCESS)
+        if (success == false) return false;
+
+        try
+        {
+            error = queue.finish();
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
+                    "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
+                    << std::endl;
+                success = false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
-                "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
+                "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
                 << std::endl;
             success = false;
         }
@@ -659,32 +784,50 @@ namespace CLManager
         cl_ulong time_start;
         cl_ulong time_end;
 
-        bool success = true;
-        int error = kernelTimings[kernelName].back().timingEvent.getProfilingInfo(CL_PROFILING_COMMAND_START,
-            &time_start);
-        if (error)
+        int error;
+        try
         {
-            std::cout << "error getting start time from event " << kernelName << ": " << std::to_string(error)
+            error = kernelTimings[kernelName].back().timingEvent.getProfilingInfo(CL_PROFILING_COMMAND_START,
+                &time_start);
+            if (error)
+            {
+                std::cout << "error getting start time from event " << kernelName << ": " << std::to_string(error)
+                    << std::endl;
+                return false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
+                "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
                 << std::endl;
-            success = false;
+                return false;
         }
 
-        error = kernelTimings[kernelName].back().timingEvent.getProfilingInfo(CL_PROFILING_COMMAND_END, &time_end);
-        if (error)
+        try
+        {
+            error = kernelTimings[kernelName].back().timingEvent.getProfilingInfo(CL_PROFILING_COMMAND_END, &time_end);
+            if (error)
+            {
+                std::cout << "error getting end time from event " << kernelName << ": " << std::to_string(error)
+                    << std::endl;
+                return false;
+            }
+        }
+        catch (cl::Error err)
         {
             std::cout << "error getting end time from event " << kernelName << ": " << std::to_string(error)
                 << std::endl;
-            success = false;
+                return false;
         }
 
         double nanoSeconds = time_end - time_start;
         kernelTimings[kernelName].back().totalMilliseconds += nanoSeconds / 1e6;
-        return success;
-        #else
-        //if timings are disabled, would be annoying to have to remove this function from everywher it is called, so
+        #endif
+
+        //if timings are disabled, would be annoying to have to remove this function from everywhere it is called, so
         //just do nothing and report success
         return true;
-        #endif
     }
 
 #endif //CL_MANAGER_IMPL
@@ -794,11 +937,20 @@ namespace CLManager
         bool success = true;
         for (const std::string& bufferName : bufferNames)
         {
-            int error = kernels[kernelName].setArg(argStartNum, glBuffers[bufferName].clBuffer);
-            if (error != CL_SUCCESS)
+            try
+            {
+                int error = kernels[kernelName].setArg(argStartNum, glBuffers[bufferName].clBuffer);
+                if (error != CL_SUCCESS)
+                {
+                    std::cout << "error setting kernel GL buffer parameter " << bufferName << " at position " << argStartNum
+                        << " in kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                    success = false;
+                }
+            }
+            catch (cl::Error err)
             {
                 std::cout << "error setting kernel GL buffer parameter " << bufferName << " at position " << argStartNum
-                    << " in kernel " << kernelName << ": " << getErrorString(error) << std::endl;
+                    << " in kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
                 success = false;
             }
 
