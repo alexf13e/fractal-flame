@@ -12,15 +12,12 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 
-#if defined(__linux__)
 #include <CL/opencl.hpp>
 #ifdef CL_MANAGER_GL
+#if defined(__linux__)
 #define GLFW_EXPOSE_NATIVE_X11
 #define GLFW_EXPOSE_NATIVE_GLX
-#endif
 #elif defined(_WIN32)
-#include "CL/cl.hpp"
-#ifdef CL_MANAGER_GL
 #define GLFW_EXPOSE_NATIVE_WGL
 #endif
 #endif
