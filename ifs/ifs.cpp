@@ -251,7 +251,6 @@ namespace ifs
 		maxPreviewSamples = n;
 		if (maxPreviewSamples > 0 && maxPreviewSamples < totalPreviewSamples)
 		{
-			std::cout << "new max is " << maxPreviewSamples << ", total is " << totalPreviewSamples << " so clearing" << std::endl;
 			clearSingleFrame = true;
 		}
 	}
