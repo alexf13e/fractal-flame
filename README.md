@@ -12,6 +12,13 @@ See here for an explanation of how the images are produced: https://flam3.com/fl
 | <img width="1920" height="1080" alt="5000000_6_9" src="examples/5000000_6_9.png" /> | <img width="3840" height="2160" alt="10000000_9_3_7" src="examples/10000000_9_3_7.png" /> |
 | <img width="1920" height="1080" alt="10000000_18_6_1_1" src="examples/10000000_18_6_1_1.png" /> | <img width="1920" height="1080" alt="4000000_13_14" src="examples/4000000_13_14.png" /> |
 
+## Installation
+Download either the Window or Linux zip file from the releases page: https://github.com/alexf13e/fractal-flame/releases. Extract the contents of the zip file, then run the executable. You will probably get a smartscreen popup on Windows and I'm not important enough to stop that from appearing. Click run anyway if you trust me, or by all means build the program yourself.
+
+For Linux:
+* The program may not use the same GPU for OpenGL and OpenCL if you have more than one (e.g. in a laptop). If you have an Nvidia GPU, running `nvrun.sh` should make OpenGL and OpenCL use the same GPU. I do not have an AMD GPU available to test if a similar step is required for them.
+* If you are using Wayland, I have been unable to get OpenGL and OpenCL to cooperate there, so it is currently unsupported (sorry).
+
 ## Usage
 On startup, 3 random fractals are created. These can be edited and added to, with the results being gradually rendered to the screen as a preview.
 The fractal can then be rendered to a file at the desired resolution and sample count.
