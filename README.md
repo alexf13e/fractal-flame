@@ -1,5 +1,6 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames, some examples are provided below:
+This program is for generating simple fractal flames, such as the examples below
+
 <img width="1920" height="1080" alt="flame_3_12_14_18" src="https://github.com/user-attachments/assets/d2a91b60-2e28-4287-b770-e0e0b1c560c1" />
 <img width="1920" height="1080" alt="flame_5_13_13" src="https://github.com/user-attachments/assets/b289945f-5467-4b38-a3ae-c8ba5a7125ce" />
 <img width="1920" height="1080" alt="flame_5_2_2" src="https://github.com/user-attachments/assets/61f9010c-9ca7-40cf-a2f1-996cd46fb1a0" />
@@ -8,8 +9,8 @@ The program intends to make it as simple as possible to generate, preview and sa
 The fractal can then be re-rendered at the desired resolution and sample count, and the result saved to a file.
 
 ## Usage
-The keys `WASD` can be used to pan the view around, and `QE` are used to zoom the view.
-The image shows an example set of variations after starting the program. The settings are as follows:
+The keys `WASD` can be used to pan the view around, and `QE` are used to zoom the view. Useful information may be shown in the cmd window, especially when saving images.
+The image below shows an example set of variations after starting the program, and the meaning of the settings are as follows:
 ### Settings
 * Samples per frame - how many sample points will be calculated every frame of the preview. Higher values make the fractal appear faster, but reduce the interactive frame rate
 * Initial iterations - how many iterations should be applied to the sample point before it is rendered. This reduces noise from the random start point of the sample
@@ -19,6 +20,7 @@ The image shows an example set of variations after starting the program. The set
 * Clear every frame - prevents samples from accumulating by resetting the preview buffer every frame. Sometimes useful
 * Pause - pauses the accumulation of samples. The camera cannot be moved while paused, as moving the view requires re-rendering the fractal
 * Clear image - resets the preview, clearing all accumulated samples
+
 ### Variations
 This is this list of variations currently being applied to the sample points.
 * Variation - the numbers refer to the list found at the end of this document: https://flam3.com/flame_draves.pdf
@@ -36,3 +38,17 @@ This is this list of variations currently being applied to the sample points.
 * Transparent background - renders the output with transparency. Otherwise a black background is set.
 * Render - click to select a location to save the image, and then it will be rendered
 <img width="498" height="238" alt="image" src="https://github.com/user-attachments/assets/168dea0e-0e62-4915-a7f5-1fcbf8992e9b" />
+
+## Build Dependencies
+* GLFW - https://www.glfw.org/
+* glad - https://glad.dav1d.de/
+* ImGui - https://github.com/ocornut/imgui
+* Native File Dialog Extended - https://github.com/btzy/nativefiledialog-extended
+
+Thanks also to
+* stb for saving images - https://github.com/nothings/stb/tree/master
+* ProjectPhysX for method of writing kernel code - https://github.com/ProjectPhysX/OpenCL-Wrapper
+
+## To do
+* Some sort of denoising
+* Figure out colour disparity between preview and render
