@@ -57,4 +57,3 @@ Thanks also to
 
 ## To do
 * Some sort of denoising
-* Figure out colour disparity between preview and render
