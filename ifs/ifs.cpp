@@ -958,7 +958,7 @@ namespace ifs
 
 		//apply brightness and gamma and convert from float to byte
 		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_renderTexture });
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_renderTexture, b_renderTexture });
 		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
 		CLManager::runKernel(k_postProcess);
 
