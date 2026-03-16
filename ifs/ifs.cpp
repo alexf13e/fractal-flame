@@ -178,7 +178,7 @@ namespace ifs
 		constexpr float MAX_DARKNESS = 10.0f;
 		constexpr float MIN_CAMERA_ZOOM = 0.001f;
 		constexpr float MAX_CAMERA_ZOOM = 50.0f;
-		
+
 		constexpr uint32_t infoLength = 5;
 		std::list<std::string> info;
 	}
@@ -243,7 +243,7 @@ namespace ifs
 		prevMousePosNDC.y = 1.0f - prevMousePosNDC.y;
 		currentMousePosNDC *= cam.view;
 		prevMousePosNDC *= cam.view;
-		
+
 		//pan view so that the position under the mouse stays attached to the mouse
 		//camera wants to move opposite direction to mouse, so invert
 		glm::vec2 deltaPos = prevMousePosNDC - currentMousePosNDC;
@@ -258,7 +258,7 @@ namespace ifs
 	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
 		if (paused) return;
-		
+
 		//rotate and zoom the view such that the point under the mouse stays attached to the mouse, and the centre of the screen stays at the centre
 		//the mouse point wants to be NDC so that 0,0 is in screen centre
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
@@ -526,7 +526,7 @@ namespace ifs
 	void setVariationWeight(uint32_t index, float w)
 	{
 		if (index >= currentFlame.numVariations) return;
-		
+
 		currentFlame.weights[index] = w;
 		CLManager::writeBuffer(b_weights, 1, &currentFlame.weights[index], index);
 		clearSingleFrame = true;
@@ -540,8 +540,8 @@ namespace ifs
 			glm::rotate(
 				glm::translate(
 					glm::scale(glm::mat3(1.0f), currentFlame.scales[index]),
-				currentFlame.translations[index]),
-			currentFlame.rotations[index]);
+					currentFlame.translations[index]),
+				currentFlame.rotations[index]);
 
 		currentFlame.transforms[index * 6 + 0] = transform[0][0];
 		currentFlame.transforms[index * 6 + 1] = transform[1][0];
@@ -568,7 +568,7 @@ namespace ifs
 
 		float newRotation = glm::mod(r, glm::two_pi<float>());
 		if (newRotation == currentFlame.rotations[index]) return;
-		
+
 		currentFlame.rotations[index] = newRotation;
 		updateVariationTransform(index);
 	}
@@ -607,7 +607,7 @@ namespace ifs
 			fileName += "_" + std::to_string(currentFlame.variations[i]);
 		}
 
-		std::vector<nfdu8filteritem_t> filters = {{ "Flame config", "flame" }};
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
 		std::string fileDir = FileDialog::saveDialog(fileName, filters);
 		if (fileDir == "")
 		{
@@ -646,7 +646,7 @@ namespace ifs
 	{
 		auto printErrInvalidData = []() {
 			appendInfo("Flame config file contains invalid data, loading cancelled");
-		};
+			};
 
 		auto checkVarNum = [&](const std::string& val, uint32_t* dest) {
 			int varNum;
@@ -678,7 +678,7 @@ namespace ifs
 
 			*dest = varNum;
 			return true;
-		};
+			};
 
 		auto checkValueFloat = [&](const std::string& val, float min, float max, float* dest) {
 			float v;
@@ -700,7 +700,7 @@ namespace ifs
 
 			*dest = v;
 			return true;
-		};
+			};
 
 		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
 		std::string fileDir = FileDialog::openDialog(filters);
@@ -801,7 +801,7 @@ namespace ifs
 		float UI_SAMPLE_SETTINGS_WIDTH = 12.5f * ImGui::GetFontSize();
 		float UI_VARIATION_SETTINGS_WIDTH = 18.0f * ImGui::GetFontSize();
 
-		ImGui::SetNextWindowPos(ImVec2(0,0));
+		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSizeConstraints(ImVec2(10, 10), ImVec2(previewTexWidth, previewTexHeight));
 		ImGui::SetNextWindowSize(ImVec2(0, previewTexHeight), ImGuiCond_Once);
 		ImGui::SetNextWindowBgAlpha(0.3f);
@@ -827,7 +827,7 @@ namespace ifs
 		ImGui::Text("Left click");
 		ImGui::Text("Shift + left click");
 		ImGui::Text("Ctrl + left click");
-		
+
 		ImGui::Columns(1);
 
 		ImGui::TextLinkOpenURL("More Info on GitHub", "https://github.com/alexf13e/fractal-flame#usage");
@@ -846,7 +846,7 @@ namespace ifs
 		{
 			clearSingleFrame = true;
 		}
-		
+
 		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
 
 		if (ImGui::Checkbox("Faster plotting (less accurate)", &plotWithoutAtomic))
@@ -1002,9 +1002,9 @@ namespace ifs
 			renderNextFrame = 2; //to allow imgui to display info that saving has started, delay actually starting until next frame
 			appendInfo("Saving image...");
 		}
-		
+
 		ImGui::Spacing();
-		
+
 		ImGui::SeparatorText("Info");
 		std::string infoCombined = "";
 		for (const std::string& i : info)
@@ -1042,7 +1042,7 @@ namespace ifs
 				previousFlames.pop();
 			}
 			if (previousFlames.size() == 0) ImGui::EndDisabled();
-			
+
 			ImGui::SeparatorText("Randomise");
 
 			const float BUTTON_WIDTH = 7.5f * ImGui::GetFontSize();
@@ -1217,7 +1217,7 @@ namespace ifs
 		if (!shLines.init("./shaders/line.vert", "./shaders/line.frag")) return false;
 
 		glGenVertexArrays(1, &vao_fullScreenTri);
-		
+
 		glGenVertexArrays(1, &vao_lines);
 		glBindVertexArray(vao_lines);
 		glGenBuffers(1, &vbo_guideLines2x2);
@@ -1226,7 +1226,7 @@ namespace ifs
 
 		glBindBuffer(GL_ARRAY_BUFFER, vbo_guideLines2x2);
 
-		std::vector<float> lines = { 
+		std::vector<float> lines = {
 			-1.0f, 0.0f,
 			1.0f, 0.0f,
 			0.0f, -1.0f,
@@ -1288,7 +1288,7 @@ namespace ifs
 		cam.init(previewTexWidth, previewTexHeight, glm::vec2(0.0f));
 
 		setPreviewTexSize(tw, th); //preview texture created here
-		
+
 		//default values for options
 		renderSampleNumMatchPreview = true;
 		renderTexSizeMatchPreview = true;
@@ -1303,7 +1303,7 @@ namespace ifs
 			renderTexWidth = 3840;
 			renderTexHeight = 2160;
 		}
-		
+
 		setNumPreviewSamples(50000);
 		setMaxPreviewSamples(10000000);
 		totalPreviewSamples = 0;
@@ -1334,9 +1334,9 @@ namespace ifs
 		//if max is 0 then always run the desired number per frame
 		//if running the desired number would go over the max, run the amount to reach the max
 		//otherwise, can safely run the desired amount and not reach max
-		
-		if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
-		else if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame;
+
+		if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame; //treat max of 0 as infinite
+		else if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
 		else
 		{
 			if (totalPreviewSamples + numPreviewSamplesPerFrame > maxPreviewSamples) actualNumPreviewSamplesThisFrame = maxPreviewSamples - totalPreviewSamples;
@@ -1358,7 +1358,7 @@ namespace ifs
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 15, currentFlame.numVariations * 3);
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 16, currentFlame.numVariations);
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 17, currentFlame.numVariations * 6);
-		
+
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
 		CLManager::setKernelRange(k_postProcess, numPixels);
 		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture });
@@ -1391,7 +1391,7 @@ namespace ifs
 
 		updateKernelParams();
 
-		if (!paused && currentFlame.numVariations > 0 && (maxPreviewSamples == 0 || totalPreviewSamples < maxPreviewSamples))
+		if (!paused && currentFlame.numVariations > 0 && actualNumPreviewSamplesThisFrame > 0)
 		{
 			CLManager::runKernel(k_produceSamples);
 			frameNum++;
@@ -1475,21 +1475,21 @@ namespace ifs
 	void render()
 	{
 		//render to an image file
-		
+
 		//check image can actually be rendered
 		uint32_t numPixels = renderTexWidth * renderTexHeight;
 		uint64_t numBytes = numPixels * 4 * sizeof(float);
-        uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
-        if (numBytes > maxAllocationSize)
-        {
-            appendInfo("Failed to allocate GPU memory for image");
+		uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
+		if (numBytes > maxAllocationSize)
+		{
+			appendInfo("Failed to allocate GPU memory for image");
 			appendInfo("required: " + std::to_string(numBytes / 1024 / 1024) + "MB, max: " +
 				std::to_string(maxAllocationSize / 1024 / 1024) + "MB");
-			
+
 			uint32_t maxSquareRes = glm::sqrt(maxAllocationSize / sizeof(float) / 4);
 			appendInfo("Try a lower resolution - the largest square image would be " + std::to_string(maxSquareRes) + "x" + std::to_string(maxSquareRes));
-            return;
-        }
+			return;
+		}
 
 		//set save path
 		std::string fileName = std::to_string(numRenderSamples);
@@ -1522,7 +1522,7 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 12, 0);
 		CLManager::setKernelParamValue(k_produceSamples, 13, numRenderSamples);
 		CLManager::runKernel(k_produceSamples);
-		
+
 		std::cout << "Applying post process..." << std::endl;
 
 		//apply brightness and gamma
