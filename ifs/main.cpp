@@ -114,9 +114,7 @@ bool init()
 	int monitorX, monitorY, monitorWidth, monitorHeight;
 	glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
 
-	const int initialWindowWidth = monitorWidth * 0.8f;
-	const int initialWindowHeight = monitorHeight * 0.8f;
-	window = glfwCreateWindow(initialWindowWidth, initialWindowHeight, "Fractal Flame IFS", NULL, NULL);
+	window = glfwCreateWindow(1280, 720, "Fractal Flame IFS", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -124,12 +122,12 @@ bool init()
 		return false;
 	}
 
-	int spareWidth = monitorWidth - initialWindowWidth;
-	int spareHeight = monitorHeight - initialWindowHeight;
-	glfwSetWindowPos(window, monitorX + spareWidth / 2, monitorY + spareHeight / 2);
+	glfwMaximizeWindow(window);
+
+	int initialWindowWidth, initialWindowHeight;
+	glfwGetWindowSize(window, &initialWindowWidth, &initialWindowHeight);
 
 	glfwMakeContextCurrent(window);
-
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
 	{
 		std::cout << "Failed to initialize GLAD" << std::endl;
@@ -146,7 +144,7 @@ bool init()
 		glfwTerminate();
 		return false;
 	}
-
+	
 	if (!ifs::init(initialWindowWidth, initialWindowHeight)) return false;
 
 	IMGUI_CHECKVERSION();
@@ -218,9 +216,6 @@ bool update()
 
 void draw()
 {
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	ifs::draw();
 
 	ImGui::Render();
@@ -252,7 +247,7 @@ int main()
 
 		glfwSwapBuffers(window);
 
-		if (ifs::getPaused())
+		if (ifs::getPaused() || ifs::getMaxSamplesReached())
 		{
 			std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 			uint32_t frameDuration = (t1 - t0).count() / 1000;

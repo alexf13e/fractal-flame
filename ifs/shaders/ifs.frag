@@ -13,7 +13,7 @@ layout (std430) buffer TexOutput
     vec4 texOutput[];
 };
 
-out vec4 outColour;
+out vec4 outcolor;
 
 
 void main()
@@ -21,5 +21,5 @@ void main()
     uint x = int(texCoord.x * texWidth);
     uint y = int(texCoord.y * texHeight);
     uint i = y * texWidth + x;
-    outColour = texOutput[i];
+    outcolor = texOutput[i];
 }

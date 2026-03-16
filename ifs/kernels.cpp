@@ -43,7 +43,7 @@ float4 mat4MulVec4(float16 mat, float4 vec)
 }
 );
 
-https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
+//https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
 std::string strRNG = KERNEL_R_STRING(
 float RNG(uint* seed)
 {
@@ -54,7 +54,7 @@ float RNG(uint* seed)
 }
 );
 
-std::string strColourConvert = KERNEL_R_STRING(
+std::string strcolorConvert = KERNEL_R_STRING(
 float3 SRGBtoLAB(float3 rgb)
 {
 	float l = 0.4122214708f * rgb.x + 0.5363325363f * rgb.y + 0.0514459929f * rgb.z;
@@ -343,7 +343,7 @@ void v48(float2* p)
 );
 
 std::string strF = KERNEL_R_STRING(
-void F(float2* p, float3* c, local uint* variations, local float* colours, local float* weightThresholds,
+void F(float2* p, float3* c, local uint* variations, local float* colors, local float* weightThresholds,
 	local float* transforms, float weightTotal, uint numVariations, uint* seed)
 {
 	//pick a weighted-random variation to apply
@@ -358,8 +358,8 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 
 	if (r >= numVariations) r = 0; //failed to find a variation for the random value, something likely wrong elsewhere
 
-	//blend colours in lab, but accumulate in srgb
-	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]))));
+	//blend colors in lab, but accumulate in srgb
+	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colors[r * 3 + 0], colors[r * 3 + 1], colors[r * 3 + 2]))));
 	
 	uint v = variations[r];
 	if (v != 0) //save doing all if checks, but allow for post-transform
@@ -398,28 +398,6 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 );
 
 std::string strPlot = KERNEL_R_STRING(
-void writePixel(global float* renderTexture, int x, int y, uint texWidth, uint texHeight, float3 color, uchar plotWithoutAtomic)
-{
-	if (x < 0 || x >= texWidth || y < 0 || y >= texHeight) return;
-
-	//use of atomics here can cause big slow down if lots of points end up in the same pixel
-	uint pixelIndex = y * texWidth + x;
-	if (plotWithoutAtomic)
-	{
-		renderTexture[pixelIndex * 4 + 0] += color.x;
-		renderTexture[pixelIndex * 4 + 1] += color.y;
-		renderTexture[pixelIndex * 4 + 2] += color.z;
-		renderTexture[pixelIndex * 4 + 3] += 1.0f;
-	}
-	else
-	{
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], color.x);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], color.y);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], color.z);
-		atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
-	}
-}
-
 void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint texWidth, uint texHeight, uchar plotWithoutAtomic)
 {
 	//draw the sample point to the buffer
@@ -434,18 +412,30 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 	int pixelX = u * texWidth;
 	int pixelY = v * texHeight;
 
-	writePixel(renderTexture, pixelX, pixelY, texWidth, texHeight, c * 0.6f, plotWithoutAtomic);
-	writePixel(renderTexture, pixelX - 1, pixelY, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
-	writePixel(renderTexture, pixelX + 1, pixelY, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
-	writePixel(renderTexture, pixelX, pixelY - 1, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
-	writePixel(renderTexture, pixelX, pixelY + 1, texWidth, texHeight, c * 0.1f, plotWithoutAtomic);
-}
+	if (pixelX < 0 || pixelX >= texWidth || pixelY < 0 || pixelY >= texHeight) return;
+
+	//use of atomics here can cause big slow down if lots of points end up in the same pixel
+	uint pixelIndex = pixelY * texWidth + pixelX;
+	if (plotWithoutAtomic)
+	{
+		renderTexture[pixelIndex * 4 + 0] += c.x;
+		renderTexture[pixelIndex * 4 + 1] += c.y;
+		renderTexture[pixelIndex * 4 + 2] += c.z;
+		renderTexture[pixelIndex * 4 + 3] += 1.0f;
+	}
+	else
+	{
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 0], c.x);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 1], c.y);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 2], c.z);
+		atomicAddFloat(&renderTexture[pixelIndex * 4 + 3], 1.0f);
+	}}
 );
 
 std::string strProduceSamples = KERNEL_R_STRING(
-kernel void produceSamples(global float* renderTexture, global uint* variations, global float* colours, global float* weights,
+kernel void produceSamples(global float* renderTexture, global uint* variations, global float* colors, global float* weights,
 	global float* transforms, uint numVariations, uint initialIterations, uint iterations, float16 matView, uint texWidth,
-	uint texHeight, uchar plotWithoutAtomic, uint frameNum, uint numSamples, local uint* lc_variations, local float* lc_colours,
+	uint texHeight, uchar plotWithoutAtomic, uint frameNum, uint numSamples, local uint* lc_variations, local float* lc_colors,
 	local float* lc_weightThresholds, local float* lc_transforms)
 {
 	//each thread describes one sample point which gets iterated on and drawn to renderTexture
@@ -461,9 +451,9 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 		{
 			lc_variations[j] = variations[j];
 
-			lc_colours[j * 3 + 0] = colours[j * 3 + 0];
-			lc_colours[j * 3 + 1] = colours[j * 3 + 1];
-			lc_colours[j * 3 + 2] = colours[j * 3 + 2];
+			lc_colors[j * 3 + 0] = colors[j * 3 + 0];
+			lc_colors[j * 3 + 1] = colors[j * 3 + 1];
+			lc_colors[j * 3 + 2] = colors[j * 3 + 2];
 			
 			weightTotal += weights[j];
 			lc_weightThresholds[j] = weightTotal;
@@ -491,13 +481,13 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 	//do some initial iterations to move away from unifom distribution in unit square
 	for (uint j = 0; j < initialIterations; j++)
 	{
-		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
+		F(&p, &c, lc_variations, lc_colors, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 	}
 	
 	for (uint j = 0; j < iterations; j++)
 	{
 		//pick a random function
-		F(&p, &c, lc_variations, lc_colours, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
+		F(&p, &c, lc_variations, lc_colors, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 
 		//plot the result
 		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
@@ -512,101 +502,23 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 );
 
 std::string strPostProcess = KERNEL_R_STRING(
-kernel void postProcess(global float4* renderTexture, global float4* processedRenderTexture, float gamma,
-	float brightness, uchar renderTransparency, uint numPixels)
+kernel void postProcess(global float4* renderTexture, global float4* renderTextureProcessed, float gamma,
+	float brightness, uint numPixels)
 {
 	uint i = get_global_id(0);
 	if (i >= numPixels) return;
 
 	float4 pix = renderTexture[i];
 
-	float alphaScale = log10(pix.w) / pix.w;
-	pix = brightness * alphaScale * pix;
-	pix = (float4)(pow(pix.xyz, (float3)(1.0f / gamma)), pix.w);
-	if (!renderTransparency)
+	if (pix.w <= 0.0f)
 	{
-		float3 background = (float3)(0.0f);
-		pix = (float4)(pix.xyz * pix.w + background, 1.0f);
+		renderTextureProcessed[i] = (float4)(0.0f);
 	}
 
-	pix = clamp(pix, 0.0f, 1.0f);
-	processedRenderTexture[i] = pix;
-}
-);
+	pix *= brightness * log10(pix.w) / pix.w;
+	pix.xyz = pow(pix.xyz, 1.0f / gamma) * pix.w;
 
-std::string strDenoise = KERNEL_R_STRING(
-void sortPair(float4* mw, uint i1, uint i2)
-{
-	float4 a = min(mw[i1], mw[i2]);
-	float4 b = max(mw[i1], mw[i2]);
-	mw[i1] = a;
-	mw[i2] = b;
-}
-
-void sort(float4* mw)
-{
-	//https://bertdobbelaere.github.io/sorting_networks.html#N9L25D7
-	sortPair(mw, 0, 3); sortPair(mw, 1, 7); sortPair(mw, 2, 5); sortPair(mw, 4, 8);
-	sortPair(mw, 0, 7); sortPair(mw, 2, 4); sortPair(mw, 3, 8); sortPair(mw, 5, 6);
-	sortPair(mw, 0, 2); sortPair(mw, 1, 3); sortPair(mw, 4, 5); sortPair(mw, 7, 8);
-	sortPair(mw, 1, 4); sortPair(mw, 3, 6); sortPair(mw, 5, 7);
-	sortPair(mw, 0, 1); sortPair(mw, 2, 4); sortPair(mw, 3, 5); sortPair(mw, 6, 8);
-	sortPair(mw, 2, 3); sortPair(mw, 4, 5); sortPair(mw, 6, 7);
-	sortPair(mw, 1, 2); sortPair(mw, 3, 4); sortPair(mw, 5, 6);
-}
-
-kernel void denoise(global float4* processedRenderTexture, global float4* denoisedRenderTexture, uint denoiseMode,
-	uint imageWidth, uint imageHeight, uint numPixels)
-{
-	uint i = get_global_id(0);
-	if (i >= numPixels) return;
-
-	int xCentre = i % imageWidth;
-	int yCentre = i / imageWidth;
-	
-	if (denoiseMode == DENOISE_MEDIAN)
-	{
-		float4 medianWindow[9];
-		for (uint j = 0; j < 9; j++)
-		{
-			int xOffset = xCentre + (j % 3) - 1;
-			int yOffset = yCentre + (j / 3) - 1;
-
-			if (xOffset < 0) xOffset = 0;
-			if (xOffset >= imageWidth) xOffset = imageWidth - 1;
-			if (yOffset < 0) yOffset = 0;
-			if (yOffset >= imageHeight) yOffset = imageHeight - 1;
-
-			medianWindow[j] = processedRenderTexture[yOffset * imageWidth + xOffset];
-		}
-
-		sort(medianWindow);
-
-		denoisedRenderTexture[i] = medianWindow[5];
-	}
-	else if (denoiseMode == DENOISE_GAUSSIAN)
-	{
-		float blur[9] = { 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 4.0f, 1.0f / 8.0f, 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 16.0f };
-		float4 result = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
-		for (uint j = 0; j < 9; j++)
-		{
-			int xOffset = xCentre + (j % 3) - 1;
-			int yOffset = yCentre + (j / 3) - 1;
-
-			if (xOffset < 0) xOffset = 0;
-			if (xOffset >= imageWidth) xOffset = imageWidth - 1;
-			if (yOffset < 0) yOffset = 0;
-			if (yOffset >= imageHeight) yOffset = imageHeight - 1;
-
-			result += blur[j] * processedRenderTexture[yOffset * imageWidth + xOffset];
-		}
-
-		denoisedRenderTexture[i] = result;
-	}
-	else
-	{
-		denoisedRenderTexture[i] = processedRenderTexture[i];
-	}
+	renderTextureProcessed[i] = clamp(pix, 0.0f, 1.0f);
 }
 );
 
@@ -625,7 +537,7 @@ kernel void floatToByte(global float4* input, global uchar4* output, uint numPix
 		strAtomicAddFloat +
 		strMat4MulVec4 +
 		strRNG +
-		strColourConvert +
+		strcolorConvert +
 		strSierpinskiTriangle +
 		strMengerSponge +
 		strVariations +
@@ -633,7 +545,6 @@ kernel void floatToByte(global float4* input, global uchar4* output, uint numPix
 		strPlot +
 		strProduceSamples +
 		strPostProcess +
-		strDenoise +
 		strFloatToByte;
 	
     return strPreProc + formatKernelString(fullKernelSource);
