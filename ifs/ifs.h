@@ -24,7 +24,8 @@ namespace ifs
 	void setInitialIterations(uint32_t n);
 	void setIterations(uint32_t n);
 	void setGamma(float g);
-	
+	void setDarkness(float d);
+
 	void addDefaultVariation();
 	void addRandomVariation();
 	void removeVariation(uint32_t index);
