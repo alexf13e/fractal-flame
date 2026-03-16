@@ -140,12 +140,19 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 9, previewTexHeight);
 	}
 
-	void updateCam(const glm::vec3& deltaPos, const float deltaZoom)
+	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
 	{
 		if (paused) return;
 
 		cam.updatePosition(deltaPos);
 		cam.updateView(deltaZoom);
+		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
+		clearSingleFrame = true;
+	}
+
+	void resetCam()
+	{
+		cam.reset();
 		CLManager::setKernelParamValue(k_produceSamples, 7, cam.getMatViewCL());
 		clearSingleFrame = true;
 	}
@@ -259,6 +266,7 @@ namespace ifs
 			coloursRGB[j * 3 + 0] = coloursRGB[(j + 1) * 3 + 0];
 			coloursRGB[j * 3 + 1] = coloursRGB[(j + 1) * 3 + 1];
 			coloursRGB[j * 3 + 2] = coloursRGB[(j + 1) * 3 + 2];
+			weights[j] = weights[j + 1];
 		}
 
 		numVariations--;
@@ -369,14 +377,19 @@ namespace ifs
 
 		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
 
-		if (ImGui::Button(paused ? "Resume" : "Pause"))
-		{
-			paused = !paused;
-		}
-
 		if (ImGui::Button("Clear image"))
 		{
 			clearSingleFrame = true;
+		}
+
+		if (ImGui::Button("Reset camera"))
+		{
+			resetCam();
+		}
+
+		if (ImGui::Button(paused ? "Resume" : "Pause"))
+		{
+			paused = !paused;
 		}
 
 		IMGUI_SPACER

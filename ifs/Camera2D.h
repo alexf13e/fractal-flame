@@ -23,6 +23,7 @@ public:
 	mat4wrap getMatViewCL();
 
 	void init(const float width, const float height, const glm::vec2& defaultPos);
+	void reset();
 
 	void updatePosition(const glm::vec2& deltaPos);
 	void updateView(const float deltaZoom);

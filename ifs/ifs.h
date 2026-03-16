@@ -10,7 +10,8 @@ namespace ifs
 	
 	void createPreviewTexture();
 	
-	void updateCam(const glm::vec3& deltaPos, const float deltaZoom);
+	void updateCam(const glm::vec2& deltaPos, const float deltaZoom);
+	void resetCam();
 	float getCamZoom();
 	bool getPaused();
 

@@ -32,6 +32,13 @@ void Camera2D::init(const float width, const float height, const glm::vec2& defa
 	setAspectRatio(width, height);
 }
 
+void Camera2D::reset()
+{
+	position = glm::vec2(0.0f);
+	zoom = 0.5f;
+	updateViewMatrix();
+}
+
 void Camera2D::updatePosition(const glm::vec2& deltaPos)
 {
 	position += deltaPos;
