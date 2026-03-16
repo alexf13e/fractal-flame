@@ -54,6 +54,3 @@ This is this list of variations currently being applied to the sample points.
 Thanks also to
 * stb for saving images - https://github.com/nothings/stb/tree/master
 * ProjectPhysX for method of writing kernel code - https://github.com/ProjectPhysX/OpenCL-Wrapper
-
-## To do
-* Some sort of denoising

@@ -503,6 +503,82 @@ kernel void postProcess(global float4* renderTexture, global float4* processedRe
 }
 );
 
+std::string strDenoise = KERNEL_R_STRING(
+void sortPair(float4* mw, uint i1, uint i2)
+{
+	float4 a = min(mw[i1], mw[i2]);
+	float4 b = max(mw[i1], mw[i2]);
+	mw[i1] = a;
+	mw[i2] = b;
+}
+
+void sort(float4* mw)
+{
+	//https://bertdobbelaere.github.io/sorting_networks.html#N9L25D7
+	sortPair(mw, 0, 3); sortPair(mw, 1, 7); sortPair(mw, 2, 5); sortPair(mw, 4, 8);
+	sortPair(mw, 0, 7); sortPair(mw, 2, 4); sortPair(mw, 3, 8); sortPair(mw, 5, 6);
+	sortPair(mw, 0, 2); sortPair(mw, 1, 3); sortPair(mw, 4, 5); sortPair(mw, 7, 8);
+	sortPair(mw, 1, 4); sortPair(mw, 3, 6); sortPair(mw, 5, 7);
+	sortPair(mw, 0, 1); sortPair(mw, 2, 4); sortPair(mw, 3, 5); sortPair(mw, 6, 8);
+	sortPair(mw, 2, 3); sortPair(mw, 4, 5); sortPair(mw, 6, 7);
+	sortPair(mw, 1, 2); sortPair(mw, 3, 4); sortPair(mw, 5, 6);
+}
+
+kernel void denoise(global float4* processedRenderTexture, global float4* denoisedRenderTexture, uint denoiseMode,
+	uint imageWidth, uint imageHeight, uint numPixels)
+{
+	uint i = get_global_id(0);
+	if (i >= numPixels) return;
+
+	int xCentre = i % imageWidth;
+	int yCentre = i / imageWidth;
+	
+	if (denoiseMode == DENOISE_MEDIAN)
+	{
+		float4 medianWindow[9];
+		for (uint j = 0; j < 9; j++)
+		{
+			int xOffset = xCentre + (j % 3) - 1;
+			int yOffset = yCentre + (j / 3) - 1;
+
+			if (xOffset < 0) xOffset = 0;
+			if (xOffset >= imageWidth) xOffset = imageWidth - 1;
+			if (yOffset < 0) yOffset = 0;
+			if (yOffset >= imageHeight) yOffset = imageHeight - 1;
+
+			medianWindow[j] = processedRenderTexture[yOffset * imageWidth + xOffset];
+		}
+
+		sort(medianWindow);
+
+		denoisedRenderTexture[i] = medianWindow[5];
+	}
+	else if (denoiseMode == DENOISE_GAUSSIAN)
+	{
+		float blur[9] = { 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 4.0f, 1.0f / 8.0f, 1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 16.0f };
+		float4 result = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+		for (uint j = 0; j < 9; j++)
+		{
+			int xOffset = xCentre + (j % 3) - 1;
+			int yOffset = yCentre + (j / 3) - 1;
+
+			if (xOffset < 0) xOffset = 0;
+			if (xOffset >= imageWidth) xOffset = imageWidth - 1;
+			if (yOffset < 0) yOffset = 0;
+			if (yOffset >= imageHeight) yOffset = imageHeight - 1;
+
+			result += blur[j] * processedRenderTexture[yOffset * imageWidth + xOffset];
+		}
+
+		denoisedRenderTexture[i] = result;
+	}
+	else
+	{
+		denoisedRenderTexture[i] = processedRenderTexture[i];
+	}
+}
+);
+
 std::string strFloatToByte = KERNEL_R_STRING(
 kernel void floatToByte(global float4* input, global uchar4* output, uint numPixels)
 {
@@ -526,6 +602,7 @@ kernel void floatToByte(global float4* input, global uchar4* output, uint numPix
 		strPlot +
 		strProduceSamples +
 		strPostProcess +
+		strDenoise +
 		strFloatToByte;
 	
     return strPreProc + formatKernelString(fullKernelSource);
