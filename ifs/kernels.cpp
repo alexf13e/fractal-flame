@@ -54,6 +54,42 @@ float RNG(uint* seed)
 }
 );
 
+std::string strColourConvert = KERNEL_R_STRING(
+float3 SRGBtoLAB(float3 rgb)
+{
+	float l = 0.4122214708f * rgb.x + 0.5363325363f * rgb.y + 0.0514459929f * rgb.z;
+	float m = 0.2119034982f * rgb.x + 0.6806995451f * rgb.y + 0.1073969566f * rgb.z;
+	float s = 0.0883024619f * rgb.x + 0.2817188376f * rgb.y + 0.6299787005f * rgb.z;
+
+	float l_ = cbrt(l);
+	float m_ = cbrt(m);
+	float s_ = cbrt(s);
+
+	return (float3)(
+		0.2104542553f * l_ + 0.7936177850f * m_ - 0.0040720468f * s_,
+		1.9779984951f * l_ - 2.4285922050f * m_ + 0.4505937099f * s_,
+		0.0259040371f * l_ + 0.7827717662f * m_ - 0.8086757660f * s_
+	);
+}
+
+float3 LABtoSRGB(float3 LAB)
+{
+	float l_ = LAB.x + 0.3963377774f * LAB.y + 0.2158037573f * LAB.z;
+	float m_ = LAB.x - 0.1055613458f * LAB.y - 0.0638541728f * LAB.z;
+	float s_ = LAB.x - 0.0894841775f * LAB.y - 1.2914855480f * LAB.z;
+
+	float l = l_ * l_ * l_;
+	float m = m_ * m_ * m_;
+	float s = s_ * s_ * s_;
+
+	return (float3)(
+		+4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
+		-1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
+		-0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s
+	);
+}
+);
+
 std::string strSierpinskiTriangle = KERNEL_R_STRING(
 float2 sierpinskiTriangle(float2 p, uint* seed, uint iterations)
 {
@@ -220,6 +256,12 @@ void v14(float2* p)
 	if (p->y < 0.0f) p->y *= 0.5f;
 }
 
+void v16(float2* p)
+{
+	float r = length(*p);
+	*p = 2.0f / (r + 1.0f) * (float2)(p->y, p->x);
+}
+
 void v18(float2* p)
 {
 	*p = exp(p->x - 1.0f) * (float2)(cos(p->y * PI), sin(p->y * PI));
@@ -239,10 +281,16 @@ void v20(float2* p)
 	*p = (float2)(cos(PI * p->x) * cosh(p->y), -sin(PI * p->x) * sinh(p->y));
 }
 
+void v27(float2* p)
+{
+	float r = length(*p);
+	*p *= 2.0f / (r + 1.0f);
+}
+
 void v28(float2* p)
 {
 	float r2 = dot(*p, *p);
-	*p *= 4.0f / (r2 + 4);
+	*p *= 4.0f / (r2 + 4.0f);
 }
 
 void v29(float2* p)
@@ -250,10 +298,45 @@ void v29(float2* p)
 	p->x = sin(p->x);
 }
 
+void v31(float2* p, uint* seed)
+{
+	float psi1 = RNG(seed);
+	float psi2 = RNG(seed);
+	p->x = p->x * cos(2 * PI * psi2);
+	p->y = p->y * sin(2 * PI * psi2);
+	*p *= psi1;
+}
+
+void v34(float2* p, uint* seed)
+{
+	float psi1 = RNG(seed);
+	float psi2 = RNG(seed);
+	p->x = cos(2 * PI * psi2);
+	p->y = sin(2 * PI * psi2);
+	*p *= psi1;
+}
+
+void v35(float2* p, uint* seed)
+{
+	float psik = RNG(seed) + RNG(seed) + RNG(seed) + RNG(seed) - 2.0f;
+	float psi5 = RNG(seed);
+	p->x = cos(2 * PI * psi5);
+	p->y = sin(2 * PI * psi5);
+	*p *= psik;
+}
+
 void v42(float2* p)
 {
 	p->x = sin(p->x) / cos(p->y);
 	p->y = tan(p->y);
+}
+
+void v43(float2* p, uint* seed)
+{
+	float psi1 = RNG(seed);
+	float psi2 = RNG(seed);
+	p->x = psi1 - 0.5f;
+	p->y = psi2 - 0.5f;
 }
 
 void v48(float2* p)
@@ -277,7 +360,9 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 		r++;
 	}
 
-	*c = 0.5f * (*c + (float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]));
+	//*c = 0.5f * (*c + (float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]));
+	//blend colours in lab, but accumulate in srgb
+	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colours[r * 3 + 0], colours[r * 3 + 1], colours[r * 3 + 2]))));
 
 	uint v = variations[r];
 	if (v == 0) return;
@@ -295,12 +380,18 @@ void F(float2* p, float3* c, local uint* variations, local float* colours, local
 	else if (v == 12) v12(p);
 	else if (v == 13) v13(p, seed);
 	else if (v == 14) v14(p);
+	else if (v == 16) v16(p);
 	else if (v == 18) v18(p);
 	else if (v == 19) v19(p);
 	else if (v == 20) v20(p);
+	else if (v == 27) v27(p);
 	else if (v == 28) v28(p);
 	else if (v == 29) v29(p);
+	else if (v == 31) v31(p, seed);
+	else if (v == 34) v34(p, seed);
+	else if (v == 35) v35(p, seed);
 	else if (v == 42) v42(p);
+	else if (v == 43) v43(p, seed);
 	else if (v == 48) v48(p);
 }
 );
@@ -421,6 +512,7 @@ kernel void renderPostProcess(global float4* renderTexture, global uchar4* proce
 		strAtomicAddFloat +
 		strMat4MulVec4 +
 		strRNG +
+		strColourConvert +
 		strSierpinskiTriangle +
 		strMengerSponge +
 		strVariations +
