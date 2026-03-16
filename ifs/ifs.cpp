@@ -248,7 +248,11 @@ namespace ifs
 		//camera wants to move opposite direction to mouse, so invert
 		glm::vec2 deltaPos = prevMousePosNDC - currentMousePosNDC;
 		deltaPos = glm::rotateZ(glm::vec3(deltaPos, 0.0f), cam.angle);
-		if (glm::length2(deltaPos) > 0.0f) updateCam(deltaPos, 1.0f, 0.0f);
+		if (glm::length2(deltaPos) > 0.0f)
+		{
+			cam.updatePosition(deltaPos);
+			clearSingleFrame = true;
+		}
 	}
 
 	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
@@ -269,7 +273,11 @@ namespace ifs
 			deltaZoom = glm::length(currentMousePosNDC) / prevMouseLength;
 		}
 
-		if (deltaZoom != 1.0f) updateCam(glm::vec2(0.0f), deltaZoom, 0.0f);
+		if (deltaZoom != 1.0f)
+		{
+			cam.updateZoom(deltaZoom);
+			clearSingleFrame = true;
+		}
 	}
 
 	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
@@ -294,7 +302,11 @@ namespace ifs
 			}
 		}
 
-		if (deltaAngle != 0.0f) updateCam(glm::vec2(0.0f), 1.0f, deltaAngle);
+		if (deltaAngle != 0.0f)
+		{
+			cam.updateRotation(deltaAngle);
+			clearSingleFrame = true;
+		}
 	}
 
 	void resetCam()
@@ -554,7 +566,10 @@ namespace ifs
 	{
 		if (index >= currentFlame.numVariations) return;
 
-		currentFlame.rotations[index] = glm::mod(r, glm::two_pi<float>());
+		float newRotation = glm::mod(r, glm::two_pi<float>());
+		if (newRotation == currentFlame.rotations[index]) return;
+		
+		currentFlame.rotations[index] = newRotation;
 		updateVariationTransform(index);
 	}
 
@@ -781,7 +796,7 @@ namespace ifs
 		loadFlameConfig(newFlameConfig);
 	}
 
-	void createGUI()
+	void createGUI(const float frameDuration)
 	{
 		float UI_SAMPLE_SETTINGS_WIDTH = 12.5f * ImGui::GetFontSize();
 		float UI_VARIATION_SETTINGS_WIDTH = 18.0f * ImGui::GetFontSize();
@@ -791,6 +806,8 @@ namespace ifs
 		ImGui::SetNextWindowSize(ImVec2(0, previewTexHeight), ImGuiCond_Once);
 		ImGui::SetNextWindowBgAlpha(0.3f);
 		ImGui::Begin("Menu", NULL);
+
+		ImGui::Text("%d fps", (int)(1.0f / frameDuration));
 
 		ImGui::SeparatorText("Controls");
 		ImGui::Columns(2);
@@ -840,7 +857,7 @@ namespace ifs
 		int temp = numPreviewSamplesPerFrame / 1000;
 		if (ImGui::InputInt("Samples per frame (thousand)", &temp, 10, 100))
 		{
-			setNumPreviewSamples(std::max(temp * 1000, 0));
+			setNumPreviewSamples(glm::max(temp * 1000, 0));
 		}
 
 		temp = maxPreviewSamples / 1000;
@@ -857,13 +874,13 @@ namespace ifs
 		temp = initialIterations;
 		if (ImGui::InputInt("Initial iterations", &temp))
 		{
-			setInitialIterations(std::max(temp, 0));
+			setInitialIterations(glm::max(temp, 0));
 		}
 
 		temp = iterations;
 		if (ImGui::InputInt("Drawing iterations", &temp))
 		{
-			setIterations(std::max(temp, 0));
+			setIterations(glm::max(temp, 0));
 		}
 
 		ImGui::Spacing();
@@ -890,28 +907,39 @@ namespace ifs
 		glm::vec2 camPos = cam.position;
 		if (ImGui::DragFloat2("Camera position", &camPos.x, 2.0f / previewTexWidth * cam.view.x))
 		{
-			//make the x and y siders move the camera in the screen's x and y directions, in the same way as though
-			//dragging the view
-			glm::vec3 desiredDelta = glm::vec3(cam.position - camPos, 0.0f);
-			desiredDelta = glm::rotateZ(desiredDelta, cam.angle);
+			glm::vec2 delta = glm::vec2(camPos - cam.position);
+			delta = glm::rotateZ(glm::vec3(delta, 0.0f), cam.angle);
 
-			cam.updatePosition(desiredDelta);
-			clearSingleFrame = true;
+			if (delta != glm::vec2(0.0f))
+			{
+				cam.updatePosition(delta);
+				clearSingleFrame = true;
+			}
 		}
 
 		float camZoom = cam.zoom;
 		if (ImGui::DragFloat("Camera zoom", &camZoom, 0.025f, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_ClampOnInput))
 		{
-			cam.updateZoom(camZoom / cam.zoom);
-			clearSingleFrame = true;
+			float delta = camZoom / cam.zoom;
+
+			if (delta != 1.0f)
+			{
+				cam.updateZoom(delta);
+				clearSingleFrame = true;
+			}
 		}
 
 		float camAngle = glm::degrees(cam.angle);
 		if (ImGui::DragFloat("Camera angle", &camAngle, 0.75f))
 		{
-			camAngle = glm::radians(camAngle);
-			cam.updateRotation(camAngle - cam.angle);
-			clearSingleFrame = true;
+			camAngle = glm::mod(glm::radians(camAngle), glm::two_pi<float>());
+
+			float delta = camAngle - cam.angle;
+			if (delta != 0.0f)
+			{
+				cam.updateRotation(delta);
+				clearSingleFrame = true;
+			}
 		}
 
 		if (ImGui::BeginCombo("Guidelines", GUIDELINE_NAMES[guideLineNum]))
