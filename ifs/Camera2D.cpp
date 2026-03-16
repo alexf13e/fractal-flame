@@ -49,6 +49,13 @@ void Camera2D::updatePosition(const glm::vec2& deltaPos)
 void Camera2D::updateView(const float deltaZoom)
 {
 	zoom *= deltaZoom;
-	view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
+	if (ar < 1.0f)
+	{
+		view = glm::vec2(1.0f / zoom * ar, 1.0f / zoom);
+	}
+	else
+	{
+		view = glm::vec2(1.0f / zoom, 1.0f / zoom / ar);
+	}
 	updateViewMatrix();
 }
