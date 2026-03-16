@@ -153,6 +153,7 @@ bool init()
 	glfwSetFramebufferSizeCallback(window, onWindowResize);
 	glfwSetKeyCallback(window, onKeyPress);
 	glfwSetMouseButtonCallback(window, onMouseClick);
+	glfwSwapInterval(0);
 
 	if (!CLManager::init(window, createKernelSource()))
 	{
@@ -265,7 +266,7 @@ bool update()
 	
 	prevMousePos = currentMousePos;
 
-	ifs::createGUI();
+	ifs::createGUI(frameDuration);
 	if (firstFrame)
 	{
 		ImGui::SetWindowFocus(NULL);
@@ -316,13 +317,11 @@ int main()
 
 		if (ifs::getPaused() || ifs::getMaxSamplesReached())
 		{
-			std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-			uint32_t frameDuration = (t1 - t0).count() / 1000;
-			uint32_t desiredFrameDuration = 16666;
-			if (frameDuration < desiredFrameDuration)
-			{
-				std::this_thread::sleep_for(std::chrono::microseconds(desiredFrameDuration - frameDuration));
-			}
+			glfwSwapInterval(1);
+		}
+		else
+		{
+			glfwSwapInterval(0);
 		}
 		
 	}

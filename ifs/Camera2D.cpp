@@ -13,7 +13,7 @@ void Camera2D::updateViewMatrix()
 void Camera2D::setAspectRatio(const float width, const float height)
 {
 	ar = width / height;
-	updateZoom(1.0f);
+	updateView(ar);
 }
 
 mat4wrap Camera2D::getMatViewCL()
@@ -39,7 +39,6 @@ void Camera2D::reset()
 	zoom = 1.0f;
 	angle = 0.0f;
 	updateView(ar);
-	updateViewMatrix();
 }
 
 void Camera2D::updateView(float aspectRatio)
@@ -52,10 +51,12 @@ void Camera2D::updateView(float aspectRatio)
 	{
 		view = glm::vec2(1.0f, 1.0f / aspectRatio) / zoom;
 	}
+
+	updateViewMatrix();
 }
 
 void Camera2D::updatePosition(const glm::vec2& deltaPos)
-{
+{	
 	position += deltaPos;
 	updateViewMatrix();
 }
@@ -64,11 +65,10 @@ void Camera2D::updateZoom(const float deltaZoom)
 {
 	zoom *= deltaZoom;
 	updateView(ar);
-	updateViewMatrix();
 }
 
 void Camera2D::updateRotation(const float deltaAngle)
-{
-	angle = glm::mod(angle + deltaAngle, glm::two_pi<float>());
+{	
+	angle += deltaAngle;
 	updateViewMatrix();
 }

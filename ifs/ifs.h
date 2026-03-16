@@ -50,7 +50,7 @@ namespace ifs
 	void saveFlameFile();
 	void loadFlameFile();
 
-	void createGUI();
+	void createGUI(const float frameDuration);
 	
 	bool init(uint32_t tw, uint32_t th);
 	void updateKernelParams();

@@ -195,12 +195,19 @@ namespace CLManager
             platform.getDevices(CL_DEVICE_TYPE_ALL, &platform_devices);
             for (cl::Device d : platform_devices)
             {
-                context = cl::Context(d, 0, 0, 0, &error);
-                if (error == CL_SUCCESS)
+                try
                 {
-                    contextSuccess = true;
-                    device = d;
-                    break;
+                    context = cl::Context(d, 0, 0, 0, &error);
+                    if (error == CL_SUCCESS)
+                    {
+                        contextSuccess = true;
+                        device = d;
+                        break;
+                    }
+                }
+                catch (cl::Error err)
+                {
+                    //don't need to do anything if a device fails to create context, just try the next one
                 }
             }
 
@@ -881,12 +888,19 @@ namespace CLManager
             platform.getDevices(CL_DEVICE_TYPE_ALL, &platform_devices);
             for (cl::Device d : platform_devices)
             {
-                context = cl::Context(d, contextProps, nullptr, nullptr, &error);
-                if (error == CL_SUCCESS)
+                try
                 {
-                    contextSuccess = true;
-                    device = d;
-                    break;
+                    context = cl::Context(d, contextProps, nullptr, nullptr, &error);
+                    if (error == CL_SUCCESS)
+                    {
+                        contextSuccess = true;
+                        device = d;
+                        break;
+                    }
+                }
+                catch (cl::Error err)
+                {
+                    //don't need to do anything if a device fails to create context, just try the next one
                 }
             }
 
