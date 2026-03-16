@@ -102,6 +102,38 @@ namespace ifs
 			43,
 			48
 		};
+
+		std::unordered_map<uint32_t, const char*> VARIATION_NAMES = {
+			{ 0,	"Linear" },
+			{ 1,	"Sinusoidal" },
+			{ 2,	"Spherical" },
+			{ 3,	"Swirl" },
+			{ 4,	"Horseshoe" },
+			{ 5,	"Polar" },
+			{ 6,	"Handkerchief" },
+			{ 7,	"Heart" },
+			{ 8,	"Disc" },
+			{ 9,	"Spiral" },
+			{ 10,	"Hyperbolic" },
+			{ 11,	"Diamond" },
+			{ 12,	"Ex" },
+			{ 13,	"Julia" },
+			{ 14,	"Bent" },
+			{ 16,	"Fisheye (y,x)" },
+			{ 18,	"Exponential" },
+			{ 19,	"Power" },
+			{ 20,	"Cosine" },
+			{ 27,	"Eyefish (x,y)" },
+			{ 28,	"Bubble" },
+			{ 29,	"Cylinder" },
+			{ 31,	"Noise" },
+			{ 34,	"Blur" },
+			{ 35,	"Gaussian" },
+			{ 42,	"Tangent" },
+			{ 43,	"Square" },
+			{ 48,	"Cross" }
+		};
+
 		constexpr uint32_t NUM_VALID_VARIATIONS = sizeof(VALID_VARIATIONS) / sizeof(uint32_t);
 	}
 
@@ -639,12 +671,12 @@ namespace ifs
 		{
 			ImGui::PushID(i);
 
-			if (ImGui::BeginCombo("Variation", std::to_string(currentFlame.variations[i]).c_str()))
+			if (ImGui::BeginCombo("Variation", (std::to_string(currentFlame.variations[i]) + " - " + VARIATION_NAMES[currentFlame.variations[i]]).c_str()))
 			{
 				for (uint32_t j = 0; j < NUM_VALID_VARIATIONS; j++)
 				{
 					bool is_selected = currentFlame.variations[i] == VALID_VARIATIONS[j];
-					if (ImGui::Selectable(std::to_string(VALID_VARIATIONS[j]).c_str(), is_selected))
+					if (ImGui::Selectable((std::to_string(VALID_VARIATIONS[j]) + " - " + VARIATION_NAMES[VALID_VARIATIONS[j]]).c_str(), is_selected))
 					{
 						setVariationNum(i, VALID_VARIATIONS[j]);
 					}
