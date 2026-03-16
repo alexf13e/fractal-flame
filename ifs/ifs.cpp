@@ -1017,7 +1017,6 @@ namespace ifs
 			renderTexWidth = 3840;
 			renderTexHeight = 2160;
 		}
-
 		
 		setNumPreviewSamples(50000);
 		setMaxPreviewSamples(10000000);
