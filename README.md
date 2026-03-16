@@ -24,9 +24,9 @@ On startup, 3 random fractals are created. These can be edited and added to, wit
 The fractal can then be rendered to a file at the desired resolution and sample count.
 
 ### Controls
-The keyboard or mouse can be used to move, rotate and scale the fractal. Rotating and scaling is always relative to the centre of the screen. Note that keyboard controls move the **camera**, i.e. pressing the `A` key will move the camera to the left, and therefore the fractal moves to the right. I personally find this more intuitive.
+The keyboard or mouse can be used to move, rotate and scale the fractal. Rotating and scaling is always relative to the centre of the screen. Note that keyboard controls move the **camera**, i.e. pressing the `A` key will move the camera to the left, and therefore the fractal moves to the right.
 
-Most boxes containing numbers can be clicked and dragged to change them, or hold ctrl and click once to type in a number. Holding shift while clicking and dragging will change the value 10x as fast, while holding alt will change it 10x slower.
+Most boxes containing numbers can be clicked and dragged to change them, or hold `ctrl` and click once to type in a number. Holding `shift` while clicking and dragging will change the value 10x as fast, while holding `alt` will change it 10x slower.
 
 ### Settings
 * Pause/Resume - pauses/resumes the accumulation of samples. The camera cannot be moved while paused, as moving the view requires re-rendering the fractal.
