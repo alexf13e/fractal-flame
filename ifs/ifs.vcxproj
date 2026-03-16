@@ -71,14 +71,14 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\Alex\Documents\Programming\cpp\_headers\nfd;C:\Users\Alex\Documents\Programming\cpp\_headers\imgui;C:\Users\Alex\Documents\Programming\cpp\_headers;C:\Users\Alex\Documents\Programming\opencl\_headers;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\_lib;C:\Users\Alex\Documents\Programming\cpp\_lib;$(LibraryPath)</LibraryPath>
-    <SourcePath>C:\Users\Alex\Documents\Programming\cpp\_src\imgui;$(SourcePath)</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath)</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\Alex\Documents\Programming\cpp\_headers\nfd;C:\Users\Alex\Documents\Programming\cpp\_headers\imgui;C:\Users\Alex\Documents\Programming\cpp\_headers;C:\Users\Alex\Documents\Programming\opencl\_headers;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)..\_lib;C:\Users\Alex\Documents\Programming\cpp\_lib;$(LibraryPath)</LibraryPath>
-    <SourcePath>C:\Users\Alex\Documents\Programming\cpp\_src\imgui;$(SourcePath)</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath)</SourcePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
