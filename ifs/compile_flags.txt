@@ -1,0 +1,19 @@
+-std=c++17
+
+-I../../_headers
+-I../../_headers/imgui
+-I../../_headers/nfd
+-I/usr/include/c++/15.2.1
+
+-lOpenCL
+-lglfw
+-lGL
+-lpthread
+-ldl
+-lX11
+-lXrandr
+-lXi
+-L ../../_lib
+-lnfd
+
+`pkg-config --cflags --libs gtk+-3.0`

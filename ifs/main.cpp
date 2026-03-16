@@ -243,8 +243,6 @@ int main()
 	if (!init()) return -1;
 
 	std::chrono::steady_clock::time_point t0;
-	uint32_t desiredFrameDuration = 0;
-	if (ifs::getPaused()) desiredFrameDuration = 16666;
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -257,12 +255,17 @@ int main()
 
 		glfwSwapBuffers(window);
 
-		std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-		uint32_t frameDuration = (t1 - t0).count() / 1000;
-		if (frameDuration < desiredFrameDuration)
+		if (ifs::getPaused())
 		{
-			std::this_thread::sleep_for(std::chrono::microseconds(desiredFrameDuration - frameDuration));
+			std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+			uint32_t frameDuration = (t1 - t0).count() / 1000;
+			uint32_t desiredFrameDuration = 16666;
+			if (frameDuration < desiredFrameDuration)
+			{
+				std::this_thread::sleep_for(std::chrono::microseconds(desiredFrameDuration - frameDuration));
+			}
 		}
+		
 	}
 
 	destroy();
