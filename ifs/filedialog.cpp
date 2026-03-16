@@ -17,14 +17,12 @@ namespace FileDialog
         NFD_Quit();
     }
 
-    std::string openDialog(const std::string& filterName, const std::string& filterFileTypes)
+    std::string openDialog(const std::vector<nfdu8filteritem_t>& filters)
     {
         nfdu8char_t* outPath;
-        nfdu8filteritem_t filters[1] = { { filterName.c_str(), filterFileTypes.c_str()}};
-        
         nfdopendialogu8args_t args = { 0 };
-        args.filterList = filters;
         args.filterCount = 1;
+        args.filterList = filters.data();
         args.parentWindow = parentWindow;
 
         nfdresult_t result = NFD_OpenDialogU8_With(&outPath, &args);
@@ -40,15 +38,13 @@ namespace FileDialog
         }
     }
 
-    std::string saveDialog(const std::string& defaultFileName)
+    std::string saveDialog(const std::string& defaultFileName, const std::vector<nfdu8filteritem_t>& filters)
     {
         nfdu8char_t* outPath;
-        nfdu8filteritem_t filters[1] = { { "PNG Image", "png"}};
-
         nfdsavedialogu8args_t args = { 0 };
         args.defaultName = defaultFileName.c_str();
         args.filterCount = 1;
-        args.filterList = filters;
+        args.filterList = filters.data();
         args.parentWindow = parentWindow;
 
         nfdresult_t result = NFD_SaveDialogU8_With(&outPath, &args);
