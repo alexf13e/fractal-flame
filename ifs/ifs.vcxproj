@@ -147,7 +147,6 @@
     <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_stdlib.cpp" />
     <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Camera2D.cpp" />
     <ClCompile Include="filedialog.cpp" />
     <ClCompile Include="ifs.cpp" />
@@ -157,7 +156,6 @@
     <ClCompile Include="ShaderProgram.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Camera.h" />
     <ClInclude Include="Camera2D.h" />
     <ClInclude Include="CLManager.h" />
     <ClInclude Include="common_def.h" />

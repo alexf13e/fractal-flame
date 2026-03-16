@@ -29,14 +29,14 @@ mat4wrap Camera2D::getMatViewCL()
 void Camera2D::init(const float width, const float height, const glm::vec2& defaultPos)
 {
 	position = defaultPos;
-	zoom = 0.5f;
+	zoom = 1.0f;
 	setAspectRatio(width, height);
 }
 
 void Camera2D::reset()
 {
 	position = glm::vec2(0.0f);
-	zoom = 0.5f;
+	zoom = 1.0f;
 	angle = 0.0f;
 	updateView(ar);
 	updateViewMatrix();
