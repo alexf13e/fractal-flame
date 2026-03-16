@@ -392,7 +392,7 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 
 std::string strRenderPostProcess = KERNEL_R_STRING(
 kernel void renderPostProcess(global float4* renderTexture, global uchar4* processedRenderTexture, float gamma,
-	float brightness, uchar renderTransparancy, uint numPixels)
+	float brightness, uchar renderTransparency, uint numPixels)
 {
 	//apply post processing (gamma, brightness, float -> byte). this is done in fragment shader for preview.
 
@@ -404,7 +404,7 @@ kernel void renderPostProcess(global float4* renderTexture, global uchar4* proce
 	float alphaScale = log10(pix.w) / pix.w;
 	pix = brightness * alphaScale * pix;
 	pix = (float4)(pow(pix.xyz, (float3)(1.0f / gamma)), pix.w);
-	if (!renderTransparancy)
+	if (!renderTransparency)
 	{
 		float3 background = (float3)(0.0f);
 		pix = (float4)(pix.xyz * pix.w + background, 1.0f);

@@ -7,12 +7,17 @@
 #include "stb_image_write.h"
 #include "imgui.h"
 
+#define CL_MANAGER_IMPL
+#define CL_MANAGER_GL
 #include "CLManager.h"
 #include "Camera2D.h"
 #include "ShaderProgram.h"
 #include "filedialog.h"
 
 #include "common_def.h"
+
+#undef min
+#undef max
 
 
 namespace ifs
@@ -35,7 +40,7 @@ namespace ifs
 		Camera2D cam;
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
-		bool renderTransparancy;
+		bool renderTransparency;
 
 		uint32_t numPreviewSamples;
 		uint32_t totalPreviewSamples;
@@ -521,7 +526,7 @@ namespace ifs
 			numRenderSamples = totalPreviewSamples;
 		}
 
-		ImGui::Checkbox("Transparant background", &renderTransparancy);
+		ImGui::Checkbox("Transparent background", &renderTransparency);
 
 		if (ImGui::Button("Render"))
 		{
@@ -573,7 +578,7 @@ namespace ifs
 		totalPreviewSamples = 0;
 		renderTexWidth = 1920;
 		renderTexHeight = 1080;
-		renderTransparancy = false;
+		renderTransparency = false;
 		renderMatchPreviewSampleNum = true;
 
 		clearEveryFrame = false;
@@ -678,7 +683,7 @@ namespace ifs
 		CLManager::setKernelParamBuffer(k_renderPostProcess, 0, { b_renderTexture, b_processedRenderTexture });
 		CLManager::setKernelParamValue(k_renderPostProcess, 2, gamma);
 		CLManager::setKernelParamValue(k_renderPostProcess, 3, 1.0f / darkness);
-		CLManager::setKernelParamValue(k_renderPostProcess, 4, renderTransparancy);
+		CLManager::setKernelParamValue(k_renderPostProcess, 4, renderTransparency);
 		CLManager::setKernelParamValue(k_renderPostProcess, 5, numPixels);
 		CLManager::runKernel(k_renderPostProcess);
 
