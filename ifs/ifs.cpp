@@ -46,8 +46,8 @@ namespace ifs
 		GLuint vao_fullScreenTri;
 
 		std::string b_previewTexture = "previewTexture";
-		std::string b_processedPreviewTexture = "processedPreviewTexture";
-		std::string glb_denoisedPreviewTexture = "denoisedPreviewTexture";
+		std::string b_previewTextureProcessed = "previewTextureProcessed";
+		std::string glb_previewTextureDenoised = "previewTextureDenoised";
 
 		std::string b_renderTexture = "renderTexture";
 		std::string b_renderTextureDenoised = "renderTextureDenoised";
@@ -188,20 +188,20 @@ namespace ifs
 		//replace preview buffer
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
 		CLManager::createBuffer<float>(b_previewTexture, numPixels * 4);
-		CLManager::createBuffer<float>(b_processedPreviewTexture, numPixels * 4);
-		CLManager::createGLBufferNoVAO<float>(glb_denoisedPreviewTexture, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
+		CLManager::createBuffer<float>(b_previewTextureProcessed, numPixels * 4);
+		CLManager::createGLBufferNoVAO<float>(glb_previewTextureDenoised, GL_SHADER_STORAGE_BUFFER, numPixels * 4);
 
 		glUseProgram(shFullScreenTri.getID());
 		int bufferBlockBinding = 0;
 		int bufferBlockIndex = glGetProgramResourceIndex(shFullScreenTri.getID(), GL_SHADER_STORAGE_BLOCK, "TexOutput");
 		glShaderStorageBlockBinding(shFullScreenTri.getID(), bufferBlockIndex, bufferBlockBinding);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_denoisedPreviewTexture].glBuffer);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bufferBlockBinding, CLManager::glBuffers[glb_previewTextureDenoised].glBuffer);
 
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texWidth"), previewTexWidth);
 		glUniform1ui(glGetUniformLocation(shFullScreenTri.getID(), "texHeight"), previewTexHeight);
 		glUseProgram(0);
 
-		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_denoisedPreviewTexture].clBuffer);
+		glObjectsToAcquire.push_back(CLManager::glBuffers[glb_previewTextureDenoised].clBuffer);
 	}
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom)
@@ -234,6 +234,12 @@ namespace ifs
 		//resize the preview buffer (usually to match window after it is resized)
 		previewTexWidth = width;
 		previewTexHeight = height;
+		if (renderTexSizeMatchPreview)
+		{
+			renderTexWidth = width;
+			renderTexHeight = height;
+		}
+
 		createPreviewTexture();
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
 	}
@@ -1082,15 +1088,15 @@ namespace ifs
 		
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
 		CLManager::setKernelRange(k_postProcess, numPixels);
-		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_processedPreviewTexture });
+		CLManager::setKernelParamBuffer(k_postProcess, 0, { b_previewTexture, b_previewTextureProcessed });
 		CLManager::setKernelParamValue(k_postProcess, 2, gamma);
 		CLManager::setKernelParamValue(k_postProcess, 3, 1.0f / darkness);
 		CLManager::setKernelParamValue(k_postProcess, 4, renderTransparency);
 		CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
 
 		CLManager::setKernelRange(k_denoise, numPixels);
-		CLManager::setKernelParamBuffer(k_denoise, 0, { b_processedPreviewTexture });
-		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_denoisedPreviewTexture });
+		CLManager::setKernelParamBuffer(k_denoise, 0, { b_previewTextureProcessed });
+		CLManager::setKernelParamGLBuffer(k_denoise, 1, { glb_previewTextureDenoised });
 		CLManager::setKernelParamValue(k_denoise, 2, denoiseMode);
 		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
 		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
@@ -1143,6 +1149,7 @@ namespace ifs
 		totalPreviewSamples = 0;
 		frameNum = 0;
 		if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
+		wantsPostProcess = true;
 	}
 
 	void draw()
@@ -1192,7 +1199,6 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 13, numRenderSamples);
 		CLManager::runKernel(k_produceSamples);
 		
-
 		std::cout << "Applying post process..." << std::endl;
 
 		//apply brightness and gamma and convert from float to byte
@@ -1204,8 +1210,8 @@ namespace ifs
 		CLManager::createBuffer<float>(b_renderTextureDenoised, numPixels * 4);
 		CLManager::setKernelRange(k_denoise, numPixels);
 		CLManager::setKernelParamBuffer(k_denoise, 0, { b_renderTexture, b_renderTextureDenoised });
-		CLManager::setKernelParamValue(k_denoise, 3, previewTexWidth);
-		CLManager::setKernelParamValue(k_denoise, 4, previewTexHeight);
+		CLManager::setKernelParamValue(k_denoise, 3, renderTexWidth);
+		CLManager::setKernelParamValue(k_denoise, 4, renderTexHeight);
 		CLManager::setKernelParamValue(k_denoise, 5, numPixels);
 		CLManager::runKernel(k_denoise);
 

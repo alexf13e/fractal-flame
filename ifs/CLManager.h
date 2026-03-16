@@ -546,8 +546,8 @@ namespace CLManager
         int error = queue.enqueueFillBuffer(buffers[bufferName], value, 0, numElements * sizeof(T));
         if (error != CL_SUCCESS)
         {
-            std::cout << "error filling buffer " << bufferName << " of size " << numElements << " with value "
-                << value << ": " << getErrorString(error) << std::endl;
+            std::cout << "error filling buffer " << bufferName << " of size " << numElements << ": "
+                << getErrorString(error) << std::endl;
             success = false;
         }
 
@@ -555,7 +555,7 @@ namespace CLManager
         if (error != CL_SUCCESS)
         {
             std::cout << "error finishing queue filling buffer " << bufferName << " of size " << numElements
-                << " with value " << value << ": " << getErrorString(error) << std::endl;
+                << ": " << getErrorString(error) << std::endl;
             success = false;
         }
 
