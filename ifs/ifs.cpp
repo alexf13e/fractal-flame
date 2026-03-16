@@ -490,7 +490,7 @@ namespace ifs
 
 		if (!valid)
 		{
-			appendInfo(std::string("Tried to set invalid variation: ") + std::to_string(variation));
+			appendInfo("Tried to set invalid variation: " + std::to_string(variation));
 			return;
 		}
 
@@ -603,7 +603,7 @@ namespace ifs
 		std::ofstream fileStream(fileDir);
 		if (!fileStream.is_open())
 		{
-			appendInfo(std::string("Failed to save flame config to file: ") + fileDir);
+			appendInfo("Failed to save flame config to file: " + fileDir);
 			return;
 		}
 
@@ -695,7 +695,7 @@ namespace ifs
 		std::ifstream fileStream(fileDir);
 		if (!fileStream.is_open())
 		{
-			appendInfo(std::string("Failed to access flame config file: ") + fileDir);
+			appendInfo("Failed to access flame config file: " + fileDir);
 			return;
 		}
 
@@ -1426,6 +1426,21 @@ namespace ifs
 	void render()
 	{
 		//render to an image file
+		
+		//check image can actually be rendered
+		uint32_t numPixels = renderTexWidth * renderTexHeight;
+		uint64_t numBytes = numPixels * 4 * sizeof(float);
+        uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
+        if (numBytes > maxAllocationSize)
+        {
+            appendInfo("Failed to allocate GPU memory for image");
+			appendInfo("required: " + std::to_string(numBytes / 1024 / 1024) + "MB, max: " +
+				std::to_string(maxAllocationSize / 1024 / 1024) + "MB");
+			
+			uint32_t maxSquareRes = glm::sqrt(maxAllocationSize / sizeof(float) / 4);
+			appendInfo("Try a lower resolution - the largest square image would be " + std::to_string(maxSquareRes) + "x" + std::to_string(maxSquareRes));
+            return;
+        }
 
 		//set save path
 		std::string fileName = std::to_string(numRenderSamples);
@@ -1442,11 +1457,10 @@ namespace ifs
 			return;
 		}
 
-		std::cout << "Rendering..." << std::endl;
-
-		uint32_t numPixels = renderTexWidth * renderTexHeight;
 		CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
 		CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
+
+		std::cout << "Rendering..." << std::endl;
 
 		//produce the samples on the texture
 		CLManager::setKernelRange(k_produceSamples, numRenderSamples);
@@ -1485,7 +1499,7 @@ namespace ifs
 		delete[] texture;
 
 		std::cout << "Render complete" << std::endl;
-		appendInfo(std::string("Render complete, saved to ") + renderOutputPath);
+		appendInfo("Image finished, saved to " + renderOutputPath);
 
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
 	}
