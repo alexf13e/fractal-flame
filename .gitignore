@@ -363,5 +363,3 @@ MigrationBackup/
 FodyWeavers.xsd
 
 releases/
-cmake-build-debug/
-.idea/
