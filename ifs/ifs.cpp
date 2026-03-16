@@ -508,10 +508,12 @@ namespace ifs
 
 	void createGUI()
 	{
-		#define IMGUI_SPACER ImGui::Dummy(ImVec2(0.0f, 10.0f));
+#define IMGUI_SPACER ImGui::Dummy(ImVec2(0.0f, 10.0f));
+#define CUSTOM_UI_ITEM_WIDTH 200.0f
 
-		ImGui::Begin("IFS", NULL);
+		ImGui::Begin("Fractal Flame IFS", NULL);
 		ImGui::SeparatorText("Settings");
+		ImGui::PushItemWidth(CUSTOM_UI_ITEM_WIDTH);
 
 		int temp = numPreviewSamples / 1000;
 		if (ImGui::InputInt("Samples per frame (thousand)", &temp, 10, 100))
@@ -542,6 +544,7 @@ namespace ifs
 		{
 			setDarkness(d);
 		}
+		ImGui::PopItemWidth();
 
 		ImGui::Checkbox("Clear every frame", &clearEveryFrame);
 
@@ -591,7 +594,9 @@ namespace ifs
 
 		if (currentFlame.numVariations > 0)
 		{
-			if (ImGui::Button("Randomise variations"))
+			ImGui::Text("Randomise");
+
+			if (ImGui::Button("Variations"))
 			{
 				previousFlames.push(currentFlame);
 
@@ -603,7 +608,7 @@ namespace ifs
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("Randomise colours"))
+			if (ImGui::Button("Colours"))
 			{
 				previousFlames.push(currentFlame);
 
@@ -616,7 +621,7 @@ namespace ifs
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("Randomise weights"))
+			if (ImGui::Button("Weights"))
 			{
 				previousFlames.push(currentFlame);
 
@@ -629,7 +634,7 @@ namespace ifs
 			ImGui::Separator();
 		}
 
-
+		ImGui::PushItemWidth(CUSTOM_UI_ITEM_WIDTH);
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
 			ImGui::PushID(i);
@@ -674,6 +679,7 @@ namespace ifs
 
 			ImGui::PopID();
 		}
+		ImGui::PopItemWidth();
 
 		if (currentFlame.numVariations < MAX_VARIATIONS)
 		{
@@ -686,7 +692,8 @@ namespace ifs
 		ImGui::End();
 
 		ImGui::Begin("Render");
-
+		ImGui::PushItemWidth(150.0f);
+		
 		int res[2] = { renderTexWidth, renderTexHeight };
 		if (ImGui::InputInt2("Render resolution", res))
 		{
@@ -702,6 +709,8 @@ namespace ifs
 			if (n < 0) n = 0;
 			numRenderSamples = n * 1000;
 		}
+
+		ImGui::PopItemWidth();
 
 		if (ImGui::Checkbox("Match current preview sample num", &renderMatchPreviewSampleNum) && renderMatchPreviewSampleNum)
 		{
