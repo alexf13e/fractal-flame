@@ -663,10 +663,20 @@ namespace ifs
 					setVariationWeight(i, randomFloat());
 				}
 			}
-
-			ImGui::Separator();
 		}
 
+		if (currentFlame.numVariations < MAX_VARIATIONS)
+		{
+			if (ImGui::Button("Add variation"))
+			{
+				addDefaultVariation();
+			}
+		}
+
+		IMGUI_SPACER();
+		ImGui::Separator();
+
+		ImGui::BeginChild("VariationWindow");
 		ImGui::PushItemWidth(UI_VARIATION_SETTINGS_WIDTH);
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
@@ -713,14 +723,7 @@ namespace ifs
 			ImGui::PopID();
 		}
 		ImGui::PopItemWidth();
-
-		if (currentFlame.numVariations < MAX_VARIATIONS)
-		{
-			if (ImGui::Button("Add variation"))
-			{
-				addDefaultVariation();
-			}
-		}
+		ImGui::EndChild();
 
 		ImGui::End();
 
