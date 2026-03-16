@@ -5,6 +5,7 @@
 
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
+#include <glm/gtx/norm.hpp>
 #include <glm/gtx/vector_angle.hpp>
 
 #include "imgui.h"
@@ -23,6 +24,7 @@
 GLFWwindow* window;
 std::chrono::steady_clock::time_point prevFrameEndTime;
 float frameDuration;
+bool firstFrame;
 
 float moveMult = 1.0f;
 
@@ -67,11 +69,16 @@ static std::map<int, Key> keyMap = {
 	{GLFW_KEY_RIGHT, Key()},
 	{GLFW_KEY_UP, Key()},
 	{GLFW_KEY_DOWN, Key()},
-	{GLFW_KEY_LEFT_SHIFT, Key()}
+	{GLFW_KEY_LEFT_SHIFT, Key()},
+	{GLFW_KEY_LEFT_CONTROL, Key()},
+	{GLFW_MOUSE_BUTTON_LEFT, Key()},
 };
 
+glm::vec2 prevMousePos, currentMousePos;
+bool firstMouseMovement;
 
-static void keyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
+
+void onKeyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	if (keyMap.count(key) == 0)
 	{
@@ -88,6 +95,22 @@ static void keyPress(GLFWwindow* window, int key, int scancode, int action, int 
 	case GLFW_RELEASE:
 		keyMap.at(key).setUp();
 		break;
+	}
+}
+
+void onMouseClick(GLFWwindow* window, int button, int action, int mods)
+{
+	if (ImGui::GetIO().WantCaptureMouse) return;
+
+	if (keyMap.count(button) == 0) return;
+
+	if (action == GLFW_PRESS)
+	{
+		keyMap.at(button).setDown();
+	}
+	else if (action == GLFW_RELEASE)
+	{
+		keyMap.at(button).setUp();
 	}
 }
 
@@ -128,7 +151,8 @@ bool init()
 	}
 
 	glfwSetFramebufferSizeCallback(window, onWindowResize);
-	glfwSetKeyCallback(window, keyPress);
+	glfwSetKeyCallback(window, onKeyPress);
+	glfwSetMouseButtonCallback(window, onMouseClick);
 
 	if (!CLManager::init(window, createKernelSource()))
 	{
@@ -141,10 +165,16 @@ bool init()
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
+	
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init();
-	ImGui::GetStyle().ScaleAllSizes(2.0f);
+	
+	float xscale, yscale;
+	glfwGetWindowContentScale(window, &xscale, &yscale);
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.ScaleAllSizes(1.5f);
+	style.FontScaleDpi = xscale;
+
 
 	int initialWindowWidth, initialWindowHeight;
 	glfwGetWindowSize(window, &initialWindowWidth, &initialWindowHeight);
@@ -154,6 +184,11 @@ bool init()
 
 	//for some reason on Windows, the window doesn't detect being maximised and the preview texture size is wrong...
 	onWindowResize(window, initialWindowWidth, initialWindowHeight);
+
+	firstFrame = true;
+	currentMousePos = glm::vec2(-1.0f);
+	prevMousePos = glm::vec2(-1.0f);
+	firstMouseMovement = true;
 
 	return true;
 }
@@ -165,13 +200,15 @@ bool update()
 	ImGui::NewFrame();
 
 	//Camera controls
-	glm::vec3 moveInputs = glm::vec3(0.0f);
-	if (keyMap.at(GLFW_KEY_W).getHeld()) moveInputs.y += 1;
-	if (keyMap.at(GLFW_KEY_S).getHeld()) moveInputs.y -= 1;
-	if (keyMap.at(GLFW_KEY_A).getHeld()) moveInputs.x -= 1;
-	if (keyMap.at(GLFW_KEY_D).getHeld()) moveInputs.x += 1;
-	if (keyMap.at(GLFW_KEY_Q).getHeld()) moveInputs.z -= 1;
-	if (keyMap.at(GLFW_KEY_E).getHeld()) moveInputs.z += 1;
+	glm::vec4 moveInputs = glm::vec4(0.0f);
+	if (keyMap.at(GLFW_KEY_W).getHeld()) moveInputs.y -= 1.0f;
+	if (keyMap.at(GLFW_KEY_S).getHeld()) moveInputs.y += 1.0f;
+	if (keyMap.at(GLFW_KEY_A).getHeld()) moveInputs.x += 1.0f;
+	if (keyMap.at(GLFW_KEY_D).getHeld()) moveInputs.x -= 1.0f;
+	if (keyMap.at(GLFW_KEY_F).getHeld()) moveInputs.z -= 1.0f;
+	if (keyMap.at(GLFW_KEY_R).getHeld()) moveInputs.z += 1.0f;
+	if (keyMap.at(GLFW_KEY_Q).getHeld()) moveInputs.w -= 1.0f;
+	if (keyMap.at(GLFW_KEY_E).getHeld()) moveInputs.w += 1.0f;
 
 	if (keyMap.at(GLFW_KEY_C).getReleased()) moveMult *= 2.0f;
 	if (keyMap.at(GLFW_KEY_X).getReleased()) moveMult *= 0.5f;
@@ -188,11 +225,36 @@ bool update()
 	if (moveMult < minMoveMult) moveMult = minMoveMult;
 	float moveSpeed = moveMult / ifs::getCamZoom() * frameDuration;
 
-	if (glm::length2(moveInputs) > 0)
+	if (glm::length2(moveInputs) > 0.0f)
 	{
-		ifs::updateCam(moveInputs * moveSpeed, pow(2.0f, moveInputs.z * 2.0f * frameDuration));
+		glm::vec2 deltaPos = glm::rotateZ(glm::vec3(moveInputs.x, moveInputs.y, 0.0f), ifs::getCamAngle()) * moveSpeed;
+		ifs::updateCam(deltaPos, pow(2.0f, moveInputs.z * 2.0f * frameDuration), moveInputs.w * glm::pi<float>() * frameDuration);
 	}
 
+	double mouseX, mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+	
+	if (firstMouseMovement)
+	{
+		//set current pos before updating prev pos
+		currentMousePos = glm::vec2(mouseX, mouseY);
+		prevMousePos = currentMousePos;
+		firstMouseMovement = false;
+	}
+	
+	currentMousePos = glm::vec2(mouseX, mouseY);
+
+	glm::vec3 mouseMoveInputs = glm::vec3(0.0f);
+	bool shiftHeld = keyMap.at(GLFW_KEY_LEFT_SHIFT).getHeld();
+	bool ctrlHeld = keyMap.at(GLFW_KEY_LEFT_CONTROL).getHeld();
+	if (keyMap.at(GLFW_MOUSE_BUTTON_LEFT).getHeld())
+	{
+		if (!(shiftHeld || ctrlHeld)) ifs::updateCamPositionMouse(currentMousePos, prevMousePos);
+		if (shiftHeld) ifs::updateCamZoomMouse(currentMousePos, prevMousePos);
+		if (ctrlHeld) ifs::updateCamRotationMouse(currentMousePos, prevMousePos);
+	}
+
+	if (shiftHeld || ctrlHeld) ifs::enableDrawMouseLine(currentMousePos);
 
 	//update press/hold/release states for next frame
 	for (auto it = keyMap.begin(); it != keyMap.end(); it++)
@@ -200,8 +262,16 @@ bool update()
 		Key& k = it->second;
 		k.updateStates();
 	}
+	
+	prevMousePos = currentMousePos;
 
 	ifs::createGUI();
+	if (firstFrame)
+	{
+		ImGui::SetWindowFocus(NULL);
+		firstFrame = false;
+	}
+
 	ifs::update();
 
 	std::chrono::steady_clock::time_point currentFrameEndTime = std::chrono::steady_clock::now();

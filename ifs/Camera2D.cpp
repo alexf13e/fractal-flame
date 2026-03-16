@@ -1,18 +1,19 @@
 
 #include "Camera2D.h"
 
-#include "glm/gtc/matrix_transform.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 
 
 void Camera2D::updateViewMatrix()
 {
-	matView = glm::ortho(position.x - view.x, position.x + view.x, position.y - view.y, position.y + view.y);
+	matView = glm::translate(glm::rotate(glm::ortho(-view.x, view.x, -view.y, view.y), -angle, glm::vec3(0.0f, 0.0f, 1.0f)), -glm::vec3(position, 0.0f));
 }
 
 void Camera2D::setAspectRatio(const float width, const float height)
 {
 	ar = width / height;
-	updateView(1.0f);
+	updateZoom(1.0f);
 }
 
 mat4wrap Camera2D::getMatViewCL()
@@ -36,8 +37,21 @@ void Camera2D::reset()
 {
 	position = glm::vec2(0.0f);
 	zoom = 0.5f;
-	view = calculateView(ar);
+	angle = 0.0f;
+	updateView(ar);
 	updateViewMatrix();
+}
+
+void Camera2D::updateView(float aspectRatio)
+{
+	if (aspectRatio > 1.0f)
+	{
+		view = glm::vec2(aspectRatio, 1.0f) / zoom;
+	}
+	else
+	{
+		view = glm::vec2(1.0f, 1.0f / aspectRatio) / zoom;
+	}
 }
 
 void Camera2D::updatePosition(const glm::vec2& deltaPos)
@@ -46,21 +60,15 @@ void Camera2D::updatePosition(const glm::vec2& deltaPos)
 	updateViewMatrix();
 }
 
-glm::vec2 Camera2D::calculateView(float aspectRatio)
-{
-	if (aspectRatio > 1.0f)
-	{
-		return glm::vec2(aspectRatio, 1.0f) / zoom;
-	}
-	else
-	{
-		return glm::vec2(1.0f, 1.0f / aspectRatio) / zoom;
-	}
-}
-
-void Camera2D::updateView(const float deltaZoom)
+void Camera2D::updateZoom(const float deltaZoom)
 {
 	zoom *= deltaZoom;
-	view = calculateView(ar);
+	updateView(ar);
+	updateViewMatrix();
+}
+
+void Camera2D::updateRotation(const float deltaAngle)
+{
+	angle = glm::mod(angle + deltaAngle, glm::two_pi<float>());
 	updateViewMatrix();
 }
