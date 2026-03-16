@@ -1335,8 +1335,8 @@ namespace ifs
 		//if running the desired number would go over the max, run the amount to reach the max
 		//otherwise, can safely run the desired amount and not reach max
 		
-		if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
-		else if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame;
+		if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame; //treat max of 0 as infinite
+		else if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
 		else
 		{
 			if (totalPreviewSamples + numPreviewSamplesPerFrame > maxPreviewSamples) actualNumPreviewSamplesThisFrame = maxPreviewSamples - totalPreviewSamples;
@@ -1391,7 +1391,7 @@ namespace ifs
 
 		updateKernelParams();
 
-		if (!paused && currentFlame.numVariations > 0 && (maxPreviewSamples == 0 || totalPreviewSamples < maxPreviewSamples))
+		if (!paused && currentFlame.numVariations > 0 && actualNumPreviewSamplesThisFrame > 0)
 		{
 			CLManager::runKernel(k_produceSamples);
 			frameNum++;
