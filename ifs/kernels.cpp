@@ -90,58 +90,6 @@ float3 LABtoSRGB(float3 LAB)
 }
 );
 
-std::string strSierpinskiTriangle = KERNEL_R_STRING(
-float2 sierpinskiTriangle(float2 p, uint* seed, uint iterations)
-{
-	for (uint i = 0; i < iterations; i++)
-	{
-		float2 target;
-		float r = RNG(seed);
-		if (r < 0.33f)
-		{
-			target = (float2)(0, 0);
-		}
-		else if (r < 0.66f)
-		{
-			target = (float2)(0.5, sqrt(0.75)) * 10.0f;
-		}
-		else
-		{
-			target = (float2)(1, 0) * 10.0f;
-		}
-
-		p = 0.5f * (p + target);
-	}
-
-	return p;
-}
-);
-
-std::string strMengerSponge = KERNEL_R_STRING(
-float2 mengerSponge(float2 p, uint* seed, uint iterations)
-{
-	const float one_third = 1.0f / 3.0f;
-	const float two_third = 2.0f * one_third;
-	for (uint i = 0; i < iterations; i++)
-	{
-		float2 target;
-		float r = RNG(seed);
-		if		(r < 0.125f) target = (float2)(0.000f, 0.0f);
-		else if (r < 0.25f)	 target = (float2)(one_third, 0.0f);
-		else if (r < 0.375f) target = (float2)(two_third, 0.0f);
-		else if (r < 0.5f)   target = (float2)(0.000f, one_third);
-		else if (r < 0.625f) target = (float2)(two_third, one_third);
-		else if (r < 0.75f)  target = (float2)(0.000f, two_third);
-		else if (r < 0.875f) target = (float2)(one_third, two_third);
-		else				 target = (float2)(two_third, two_third);
-
-		p = one_third * p + target;
-	}
-
-	return p;
-}
-);
-
 //https://flam3.com/flame_draves.pdf
 std::string strVariations = KERNEL_R_STRING(
 void v1(float2* p)
@@ -152,51 +100,51 @@ void v1(float2* p)
 
 void v2(float2* p)
 {
-	float r = length(*p);
-	float r2Inv = 1.0f / (r * r);
+	const float r = length(*p);
+	const float r2Inv = 1.0f / (r * r);
 	*p *= r2Inv;
 }
 
 void v3(float2* p)
 {
-	float r2 = dot(*p, *p);
+	const float r2 = dot(*p, *p);
 	*p = (float2)(p->x * sin(r2) - p->y * cos(r2), p->x * cos(r2) + p->y * sin(r2));
 }
 
 void v4(float2* p)
 {
-	float r = length(*p);
+	const float r = length(*p);
 	*p = 1.0f / r * (float2)((p->x - p->y) * (p->x + p->y), 2.0f * p->x * p->y);
 }
 
 void v5(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = theta / PI;
 	p->y = r - 1.0f;
 }
 
 void v6(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = r * sin(theta + r);
 	p->y = r * cos(theta - r);
 }
 
 void v7(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = r * sin(theta * r);
 	p->y = r * -cos(theta * r);
 }
 
 void v8(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = sin(PI * r);
 	p->y = cos(PI * r);
 	*p *= theta / PI;
@@ -204,8 +152,8 @@ void v8(float2* p)
 
 void v9(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = cos(theta) + sin(r);
 	p->y = sin(theta) - cos(r);
 	*p *= 1.0f / r;
@@ -213,24 +161,24 @@ void v9(float2* p)
 
 void v10(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = sin(theta) / r;
 	p->y = r * cos(theta);
 }
 
 void v11(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = sin(theta) * cos(r);
 	p->y = cos(theta) * sin(r);
 }
 
 void v12(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	float p0 = sin(theta + r);
 	float p1 = cos(theta - r);
 	p0 *= p0 * p0;
@@ -241,9 +189,9 @@ void v12(float2* p)
 
 void v13(float2* p, uint* seed)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
-	float omega = RNG(seed) < 0.5f ? 0.0f : PI;
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
+	const float omega = RNG(seed) < 0.5f ? 0.0f : PI;
 	p->x = cos(theta * 0.5f + omega);
 	p->y = sin(theta * 0.5f + omega);
 	*p *= sqrt(r);
@@ -255,10 +203,20 @@ void v14(float2* p)
 	if (p->y < 0.0f) p->y *= 0.5f;
 }
 
+void v15(float2* p, const float b, const float c, const float e, const float f)
+{
+	*p = (float2)(p->x + b * sin(p->y / (c * c)), p->y + e * sin(p->x / (f * f)));
+}
+
 void v16(float2* p)
 {
-	float r = length(*p);
+	const float r = length(*p);
 	*p = 2.0f / (r + 1.0f) * (float2)(p->y, p->x);
+}
+
+void v17(float2* p, const float c, const float f)
+{
+	*p = (float2)(p->x + c * sin(tan(3.0f * p->y)), p->y + f * sin(tan(3.0f * p->x)));
 }
 
 void v18(float2* p)
@@ -268,8 +226,8 @@ void v18(float2* p)
 
 void v19(float2* p)
 {
-	float r = length(*p);
-	float theta = atan2(p->x, p->y);
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
 	p->x = cos(theta);
 	p->y = sin(theta);
 	*p *= pow(r, sin(theta));
@@ -280,15 +238,35 @@ void v20(float2* p)
 	*p = (float2)(cos(PI * p->x) * cosh(p->y), -sin(PI * p->x) * sinh(p->y));
 }
 
+void v21(float2* p, const float c)
+{
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
+	const float c2 = c * c;
+	*p = (fmod(r + c2, 2.0f * c2) - c2 + r * (1.0f - c2)) * (float2)(cos(theta), sin(theta));
+}
+
+void v22(float2* p, const float c, const float f)
+{
+	const float r = length(*p);
+	const float theta = atan2(p->x, p->y);
+	const float t = PI * c * c;
+	
+	float half_t = t * 0.5f;
+	if (fmod(theta + f, t) > half_t) half_t = -half_t;
+
+	*p = r * (float2)(cos(theta + half_t), sin(theta + half_t));
+}
+
 void v27(float2* p)
 {
-	float r = length(*p);
+	const float r = length(*p);
 	*p *= 2.0f / (r + 1.0f);
 }
 
 void v28(float2* p)
 {
-	float r2 = dot(*p, *p);
+	const float r2 = dot(*p, *p);
 	*p *= 4.0f / (r2 + 4.0f);
 }
 
@@ -299,24 +277,24 @@ void v29(float2* p)
 
 void v31(float2* p, uint* seed)
 {
-	float psi1 = RNG(seed);
-	float psi2 = RNG(seed);
+	const float psi1 = RNG(seed);
+	const float psi2 = RNG(seed);
 	p->x *= cos(TWO_PI * psi2) * psi1;
 	p->y *= sin(TWO_PI * psi2) * psi1;
 }
 
 void v34(float2* p, uint* seed)
 {
-	float psi1 = RNG(seed);
-	float psi2 = RNG(seed);
+	const float psi1 = RNG(seed);
+	const float psi2 = RNG(seed);
 	p->x = cos(TWO_PI * psi2) * psi1;
 	p->y = sin(TWO_PI * psi2) * psi1;
 }
 
 void v35(float2* p, uint* seed)
 {
-	float psik = RNG(seed) + RNG(seed) + RNG(seed) + RNG(seed) - 2.0f;
-	float psi5 = RNG(seed);
+	const float psik = RNG(seed) + RNG(seed) + RNG(seed) + RNG(seed) - 2.0f;
+	const float psi5 = RNG(seed);
 	p->x = cos(TWO_PI * psi5) * psik;
 	p->y = sin(TWO_PI * psi5) * psik;
 }
@@ -329,21 +307,60 @@ void v42(float2* p)
 
 void v43(float2* p, uint* seed)
 {
-	float psi1 = RNG(seed);
-	float psi2 = RNG(seed);
+	const float psi1 = RNG(seed);
+	const float psi2 = RNG(seed);
 	p->x = psi1 - 0.5f;
 	p->y = psi2 - 0.5f;
 }
 
 void v48(float2* p)
 {
-	float a = sqrt(1.0f / ((p->x * p->x - p->y * p->y) * (p->x * p->x - p->y * p->y)));
-	*p *= a;
+	*p *= sqrt(1.0f / ((p->x * p->x - p->y * p->y) * (p->x * p->x - p->y * p->y)));
+}
+
+void v100(float2* p, uint* seed) //sierpinski triangle
+{
+	const float HALF_HEIGHT = 0.4330127f; //sqrt(0.75f) * 0.5f;
+	const float r = RNG(seed);
+
+	float2 target;
+	if (r < 0.33f)
+	{
+		target = (float2)(-0.5f, -HALF_HEIGHT);
+	}
+	else if (r < 0.66f)
+	{
+		target = (float2)(0.0f, HALF_HEIGHT);
+	}
+	else
+	{
+		target = (float2)(0.5f, -HALF_HEIGHT);
+	}
+
+	*p = 0.5f * (*p + target);
+}
+
+void v101(float2* p, uint* seed) //menger sponge
+{
+	const float ONE_THIRD = 1.0f / 3.0f;
+	const float r = RNG(seed);
+
+	float2 target;
+	if		(r < 0.125f) target = (float2)(-ONE_THIRD, -ONE_THIRD);
+	else if (r < 0.25f)	 target = (float2)(0.0f, -ONE_THIRD);
+	else if (r < 0.375f) target = (float2)(ONE_THIRD, -ONE_THIRD);
+	else if (r < 0.5f)   target = (float2)(-ONE_THIRD, 0.0f);
+	else if (r < 0.625f) target = (float2)(ONE_THIRD, 0.0f);
+	else if (r < 0.75f)  target = (float2)(-ONE_THIRD, ONE_THIRD);
+	else if (r < 0.875f) target = (float2)(0.0f, ONE_THIRD);
+	else				 target = (float2)(ONE_THIRD, ONE_THIRD);
+
+	*p = ONE_THIRD * *p + target;
 }
 );
 
 std::string strF = KERNEL_R_STRING(
-void F(float2* p, float3* c, local uint* variations, local float* colors, local float* weightThresholds,
+void F(float2* p, float3* color, local uint* variations, local float* colors, local float* weightThresholds,
 	local float* transforms, float weightTotal, uint numVariations, uint* seed)
 {
 	//pick a weighted-random variation to apply
@@ -356,10 +373,15 @@ void F(float2* p, float3* c, local uint* variations, local float* colors, local 
 		r++;
 	}
 
-	if (r >= numVariations) r = 0; //failed to find a variation for the random value, something likely wrong elsewhere
-
 	//blend colors in lab, but accumulate in srgb
-	*c = LABtoSRGB(0.5f * (SRGBtoLAB(*c) + SRGBtoLAB((float3)(colors[r * 3 + 0], colors[r * 3 + 1], colors[r * 3 + 2]))));
+	*color = LABtoSRGB(0.5f * (SRGBtoLAB(*color) + SRGBtoLAB((float3)(colors[r * 3 + 0], colors[r * 3 + 1], colors[r * 3 + 2]))));
+
+	const float a = transforms[r * 6 + 0];
+	const float b = transforms[r * 6 + 1];
+	const float c = transforms[r * 6 + 2];
+	const float d = transforms[r * 6 + 3];
+	const float e = transforms[r * 6 + 4];
+	const float f = transforms[r * 6 + 5];
 	
 	uint v = variations[r];
 	if (v != 0) //save doing all if checks, but allow for post-transform
@@ -378,10 +400,14 @@ void F(float2* p, float3* c, local uint* variations, local float* colors, local 
 		else if (v == 12) v12(p);
 		else if (v == 13) v13(p, seed);
 		else if (v == 14) v14(p);
+		else if (v == 15) v15(p, b, c, e, f);
 		else if (v == 16) v16(p);
+		else if (v == 17) v17(p, c, f);
 		else if (v == 18) v18(p);
 		else if (v == 19) v19(p);
 		else if (v == 20) v20(p);
+		else if (v == 21) v21(p, c);
+		else if (v == 22) v22(p, c, f);
 		else if (v == 27) v27(p);
 		else if (v == 28) v28(p);
 		else if (v == 29) v29(p);
@@ -391,9 +417,11 @@ void F(float2* p, float3* c, local uint* variations, local float* colors, local 
 		else if (v == 42) v42(p);
 		else if (v == 43) v43(p, seed);
 		else if (v == 48) v48(p);
+		else if (v == 100) v100(p, seed);
+		else if (v == 101) v101(p, seed);
 	}
 
-	*p = (float2)(p->x * transforms[r * 6 + 0] + p->y * transforms[r * 6 + 1] + transforms[r * 6 + 2], p->x * transforms[r * 6 + 3] + p->y * transforms[r * 6 + 4] + transforms[r * 6 + 5]);
+	*p = (float2)(p->x * a + p->y * b + c, p->x * d + p->y * e + f);
 }
 );
 
@@ -505,7 +533,7 @@ std::string strPostProcess = KERNEL_R_STRING(
 kernel void postProcess(global float4* renderTexture, global float4* renderTextureProcessed, float brightness,
 	float intensity, float gamma, uint numPixels)
 {
-	uint i = get_global_id(0);
+	const uint i = get_global_id(0);
 	if (i >= numPixels) return;
 
 	float4 pix = renderTexture[i];
@@ -531,7 +559,7 @@ kernel void postProcess(global float4* renderTexture, global float4* renderTextu
 std::string strFloatToByte = KERNEL_R_STRING(
 kernel void floatToByte(global float4* input, global uchar4* output, uint numPixels)
 {
-	uint i = get_global_id(0);
+	const uint i = get_global_id(0);
 	if (i >= numPixels) return;
 
 	output[i] = convert_uchar4(255.0f * input[i]);
@@ -544,8 +572,6 @@ kernel void floatToByte(global float4* input, global uchar4* output, uint numPix
 		strMat4MulVec4 +
 		strRNG +
 		strcolorConvert +
-		strSierpinskiTriangle +
-		strMengerSponge +
 		strVariations +
 		strF +
 		strPlot +

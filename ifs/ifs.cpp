@@ -117,10 +117,14 @@ namespace ifs
 			12,
 			13,
 			14,
+			15,
 			16,
+			17,
 			18,
 			19,
 			20,
+			21,
+			22,
 			27,
 			28,
 			29,
@@ -129,7 +133,9 @@ namespace ifs
 			35,
 			42,
 			43,
-			48
+			48,
+			100,
+			101
 		};
 
 		std::unordered_map<uint32_t, const char*> VARIATION_NAMES = {
@@ -148,10 +154,14 @@ namespace ifs
 			{ 12,	"Ex" },
 			{ 13,	"Julia" },
 			{ 14,	"Bent" },
+			{ 15,	"Waves" },
 			{ 16,	"Fisheye (y,x)" },
+			{ 17,	"Popcorn" },
 			{ 18,	"Exponential" },
 			{ 19,	"Power" },
 			{ 20,	"Cosine" },
+			{ 21,	"Rings" },
+			{ 22,	"Fan" },
 			{ 27,	"Eyefish (x,y)" },
 			{ 28,	"Bubble" },
 			{ 29,	"Cylinder" },
@@ -160,7 +170,9 @@ namespace ifs
 			{ 35,	"Gaussian" },
 			{ 42,	"Tangent" },
 			{ 43,	"Square" },
-			{ 48,	"Cross" }
+			{ 48,	"Cross" },
+			{ 100,	"Sierpinski" },
+			{ 101,	"Menger" }
 		};
 
 		uint32_t NUM_VALID_VARIATIONS = VARIATION_NAMES.size();
@@ -962,7 +974,7 @@ namespace ifs
 
 		ImGui::Spacing();
 
-		ImGui::SeparatorText("Colour processing");
+		ImGui::SeparatorText("Color processing");
 
 		if (ImGui::DragFloat("Brightness", &brightness, 0.005f, MIN_BRIGHTNESS, MAX_BRIGHTNESS, "%.3f", ImGuiSliderFlags_ClampOnInput))
 		{
