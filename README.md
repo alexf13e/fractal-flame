@@ -1,10 +1,9 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames, such as the examples below or in the examples folder: https://github.com/alexf13e/fractal-flame/tree/main/examples.
+This program is for generating simple fractal flames, see here for more examples along with config files: https://alexf13e.neocities.org/fractals/.
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
 
 See here for an explanation of how the images are produced: https://flam3.com/flame_draves.pdf.
-
 
 <img width="3840" height="2160" alt="100000000_4_13" src="examples/100000000_4_13.png" />
 
