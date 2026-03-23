@@ -622,6 +622,7 @@ namespace ifs
 		}
 
 		clearSingleFrame = true;
+		paused = false;
 	}
 
 	void saveFlameFile()
@@ -671,7 +672,7 @@ namespace ifs
 	{
 		auto printErrInvalidData = []() {
 			appendInfo("Flame config file contains invalid data, loading cancelled");
-			};
+		};
 
 		auto checkVarNum = [&](const std::string& val, uint32_t* dest) {
 			int varNum;
@@ -703,7 +704,7 @@ namespace ifs
 
 			*dest = varNum;
 			return true;
-			};
+		};
 
 		auto checkValueFloat = [&](const std::string& val, float min, float max, float* dest) {
 			float v;
@@ -725,7 +726,7 @@ namespace ifs
 
 			*dest = v;
 			return true;
-			};
+		};
 
 		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
 		std::string fileDir = FileDialog::openDialog(filters);
@@ -1073,13 +1074,14 @@ namespace ifs
 				loadFlameFile();
 			}
 
-			if (previousFlames.size() == 0) ImGui::BeginDisabled();
+			uint32_t numPreviousFlames = previousFlames.size(); //size can change before calling EndDisabled()
+			if (numPreviousFlames == 0) ImGui::BeginDisabled();
 			if (ImGui::Button("Previous flame"))
 			{
 				loadFlameConfig(previousFlames.top(), false);
 				previousFlames.pop();
 			}
-			if (previousFlames.size() == 0) ImGui::EndDisabled();
+			if (numPreviousFlames == 0) ImGui::EndDisabled();
 
 			ImGui::SeparatorText("Randomise");
 
