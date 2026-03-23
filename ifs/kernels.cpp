@@ -434,7 +434,7 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 
 std::string strProduceSamples = KERNEL_R_STRING(
 kernel void produceSamples(global float* renderTexture, global uint* variations, global float* colors, global float* weights,
-	global float* transforms, uint numVariations, uint initialIterations, uint iterations, float16 matView, uint texWidth,
+	global float* transforms, uint numVariations, uint initialIterations, uint drawingIterations, float16 matView, uint texWidth,
 	uint texHeight, uchar plotWithoutAtomic, uint frameNum, uint numSamples, local uint* lc_variations, local float* lc_colors,
 	local float* lc_weightThresholds, local float* lc_transforms)
 {
@@ -484,7 +484,7 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 		F(&p, &c, lc_variations, lc_colors, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 	}
 	
-	for (uint j = 0; j < iterations; j++)
+	for (uint j = 0; j < drawingIterations; j++)
 	{
 		//pick a random function
 		F(&p, &c, lc_variations, lc_colors, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
@@ -493,7 +493,7 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
 	}
 
-	if (iterations == 0)
+	if (drawingIterations == 0)
 	{
 		//if there weren't any iterations, still want to draw where the point was
 		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
@@ -502,8 +502,8 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 );
 
 std::string strPostProcess = KERNEL_R_STRING(
-kernel void postProcess(global float4* renderTexture, global float4* renderTextureProcessed, float gamma,
-	float brightness, uint numPixels)
+kernel void postProcess(global float4* renderTexture, global float4* renderTextureProcessed, float brightness,
+	float intensity, float gamma, uint numPixels)
 {
 	uint i = get_global_id(0);
 	if (i >= numPixels) return;
@@ -512,11 +512,16 @@ kernel void postProcess(global float4* renderTexture, global float4* renderTextu
 
 	if (pix.w <= 0.0f)
 	{
-		renderTextureProcessed[i] = (float4)(0.0f);
+		renderTextureProcessed[i] = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+		return;
 	}
+	
+	pix *= log10(pix.w) / pix.w;
+	pix.xyz *= brightness;
 
-	pix *= brightness * log10(pix.w) / pix.w;
-	pix.xyz = pow(pix.xyz, 1.0f / gamma) * pix.w;
+	float3 flat = pow(pix.xyz, 1.0f / gamma);
+	float3 intense = flat * pix.w * brightness;
+	pix.xyz = intensity * intense + (1.0f - intensity) * flat;
 	pix.w = 1.0f;
 
 	renderTextureProcessed[i] = clamp(pix, 0.0f, 1.0f);

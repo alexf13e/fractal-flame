@@ -26,12 +26,15 @@ namespace ifs
 	bool getMaxSamplesReached();
 
 	void setPreviewTexSize(uint32_t width, uint32_t height);
-	void setNumPreviewSamples(uint32_t n);
+	void setNumPreviewSamplesPerFrame(uint32_t n);
 	void setMaxPreviewSamples(uint32_t n);
 	void setInitialIterations(uint32_t n);
-	void setIterations(uint32_t n);
+	void setDrawingIterations(uint32_t n);
+	
+	void setBrightness(float b);
+	void setIntensity(float v);
 	void setGamma(float g);
-	void setDarkness(float d);
+
 	void enableDrawMouseLine(const glm::vec2& currentMousePosScreen);
 
 	void addDefaultVariation();
@@ -57,7 +60,10 @@ namespace ifs
 	void update();
 	void clearSamples();
 	void draw();
-	void render();
+
+	bool checkImageCanRender();
+	void saveProcessedImage();
+	void saveUnprocessedData();
 
 	float randomFloat();
 	uint32_t randomVariationNum();
