@@ -5,7 +5,8 @@ The program can be downloaded from the releases page: https://github.com/alexf13
 
 See here for an explanation of how the images are produced: https://flam3.com/flame_draves.pdf.
 
-<img width="3840" height="2160" alt="100000000_4_13" src="examples/100000000_4_13.png" />
+<img width="2116" height="1352" alt="image" src="https://github.com/user-attachments/assets/ee2935a8-95f8-46ae-97ce-017d19fdfdd7" />
+
 
 ## Installation
 Download either the Window or Linux zip file from the releases page: https://github.com/alexf13e/fractal-flame/releases. Extract the contents of the zip file, then run the executable. You will probably get a smartscreen popup on Windows and I'm not important enough to stop that from appearing. Click run anyway if you trust me, or by all means build the program yourself.
@@ -41,7 +42,8 @@ Note that typing a value directly with `ctrl + click`  allows for some inputs to
 * Guidelines - draw an overlay with lines to help positioning the fractal within the frame. These lines are not drawn on the image when saving.
 
 ### Colour processing
-The the three options here don't necessarily follow their traditional effects on the pixel values. I have used them in a way that I find made images which I preferred the look of. Older versions of the program effectively had `intensity` forced to 1, however this meant that images could easily become overexposed and too bright. With `intensity` set to 0, the colours can look quite flat and boring but will converge more nicely. The full colour processing algorithm is:
+The the three options here don't necessarily follow their traditional effects on the pixel values. I have used them in a way that I find made images which I preferred the look of. Intensity is similar to contrast, where larger values allow the colours to get a lot brighter and darker, however this means that images could easily become overexposed and too bright. With intensity set to 0, the colours can look quite flat and boring but will converge more nicely. There is no dedicated saturation slider, however the image appears more saturated with lower gamma (increase brightness to compensate as the image will become darker), and vice versa for reduced saturation.
+The full colour processing algorithm is:
 ```
 //pix.w is the number of samples which have landed on this pixel
 if (pix.w <= 0) draw background and return
