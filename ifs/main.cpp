@@ -1,7 +1,6 @@
 
 #include <iostream>
 #include <map>
-#include <thread>
 
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
@@ -315,7 +314,7 @@ int main()
 
 		glfwSwapBuffers(window);
 
-		if (ifs::getPaused() || ifs::getMaxSamplesReached())
+		if (ifs::getPaused() || ifs::getMaxPreviewFramesReached())
 		{
 			glfwSwapInterval(1);
 		}

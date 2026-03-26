@@ -503,8 +503,8 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 	uint seed = i + frameNum * numSamples;
 	RNG(&seed); //randomise the seed once before using
 
-	float2 p = (float2)(RNG(&seed) * 2.0f - 1.0f, RNG(&seed) * 2.0f - 1.0f);
-	float3 c = (float3)(RNG(&seed), RNG(&seed), RNG(&seed));
+	float2 p = (float2)(RNG(&seed), RNG(&seed)) * 2.0f - 1.0f;
+	float3 c = (float3)(0.5f);
 
 	//do some initial iterations to move away from unifom distribution in unit square
 	for (uint j = 0; j < initialIterations; j++)
@@ -518,12 +518,6 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 		F(&p, &c, lc_variations, lc_colors, lc_weightThresholds, lc_transforms, weightTotal, numVariations, &seed);
 
 		//plot the result
-		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
-	}
-
-	if (drawingIterations == 0)
-	{
-		//if there weren't any iterations, still want to draw where the point was
 		plot(renderTexture, p, c, matView, texWidth, texHeight, plotWithoutAtomic);
 	}
 }
@@ -543,7 +537,7 @@ kernel void postProcess(global float4* renderTexture, global float4* renderTextu
 		renderTextureProcessed[i] = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
 		return;
 	}
-	
+
 	pix *= log10(pix.w) / pix.w;
 	pix.xyz *= brightness;
 

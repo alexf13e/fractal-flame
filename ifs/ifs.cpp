@@ -1,10 +1,12 @@
 
 #include "ifs.h"
 
+#include <ctime>
 #include <stack>
 #include <fstream>
 #include <sstream>
 #include <list>
+#include <time.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -67,11 +69,9 @@ namespace ifs
 		std::vector<cl::Memory> glObjectsToAcquire;
 
 		
-		uint32_t numPreviewSamplesPerFrame;
-		uint32_t actualNumPreviewSamplesThisFrame;
-		uint32_t maxPreviewSamples;
-		uint32_t totalPreviewSamples;
-		uint32_t numRenderSamples;
+		uint32_t numSampleThreads;
+		uint32_t maxPreviewFrames;
+		uint32_t numRenderFrames;
 		uint32_t initialIterations;
 		uint32_t drawingIterations;
 		
@@ -81,7 +81,7 @@ namespace ifs
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
 		bool renderTexSizeMatchPreview;
-		bool renderSampleNumMatchPreview;
+		bool renderFrameNumMatchPreview;
 		uint8_t renderNextFrame, saveUnprocessedDataNextFrame;
 
 		float brightness;
@@ -186,8 +186,6 @@ namespace ifs
 		uint32_t NUM_GUIDELINE_NAMES = GUIDELINE_NAMES.size();
 
 
-		constexpr uint32_t MIN_PREVIEW_SAMPLES = 0;
-		constexpr uint32_t MAX_PREVIEW_SAMPLES = 1000000;
 		constexpr float MIN_CAMERA_ZOOM = 0.001f;
 		constexpr float MAX_CAMERA_ZOOM = 50.0f;
 		constexpr float MIN_THRESHOLD = 0.0f;
@@ -352,9 +350,9 @@ namespace ifs
 		return paused;
 	}
 
-	bool getMaxSamplesReached()
+	bool getMaxPreviewFramesReached()
 	{
-		return maxPreviewSamples != 0 && totalPreviewSamples == maxPreviewSamples;
+		return (maxPreviewFrames != 0 && frameNum == maxPreviewFrames) || currentFlame.numVariations == 0;
 	}
 
 	void setPreviewTexSize(uint32_t width, uint32_t height)
@@ -372,17 +370,10 @@ namespace ifs
 		cam.setAspectRatio(previewTexWidth, previewTexHeight);
 	}
 
-	void setNumPreviewSamplesPerFrame(uint32_t n)
+	void setMaxPreviewFrames(uint32_t n)
 	{
-		//set the number of sample points which will be calculated each frame for the preview
-		numPreviewSamplesPerFrame = n;
-		clearSingleFrame = true;
-	}
-
-	void setMaxPreviewSamples(uint32_t n)
-	{
-		maxPreviewSamples = n;
-		if (maxPreviewSamples > 0 && maxPreviewSamples < totalPreviewSamples)
+		maxPreviewFrames = n;
+		if (maxPreviewFrames > 0 && maxPreviewFrames < frameNum)
 		{
 			clearSingleFrame = true;
 		}
@@ -666,6 +657,9 @@ namespace ifs
 
 		fileStream << std::to_string(cam.position.x) << ", " << std::to_string(cam.position.y) << ", " <<
 			std::to_string(cam.angle) << ", " << std::to_string(cam.zoom) << std::endl;
+
+		fileStream << std::to_string(brightness) << ", " << std::to_string(intensity) << ", " << std::to_string(gamma)
+			<< std::endl;
 	}
 
 	void loadFlameFile()
@@ -812,6 +806,17 @@ namespace ifs
 				cam.updateRotation(angle);
 				cam.updateZoom(zoom);
 			}
+			else if (values.size() == 3) //brightness, intensity, gamma
+			{
+				float _brightness, _intensity, _gamma;
+				if (!checkValueFloat(values[0], MIN_BRIGHTNESS, MAX_BRIGHTNESS, &_brightness)) return;
+				if (!checkValueFloat(values[1], MIN_INTENSITY, MAX_INTENSITY, &_intensity)) return;
+				if (!checkValueFloat(values[2], MIN_GAMMA, MAX_GAMMA, &_gamma)) return;
+
+				brightness = _brightness;
+				intensity = _intensity;
+				gamma = _gamma;
+			}
 			else
 			{
 				appendInfo("Flame config file does not match expected format, loading cancelled");
@@ -880,34 +885,28 @@ namespace ifs
 			clearSingleFrame = true;
 		}
 
-		int temp = numPreviewSamplesPerFrame / 1000;
-		if (ImGui::InputInt("Samples per frame (thousand)", &temp, 10, 100))
-		{
-			setNumPreviewSamplesPerFrame(glm::max(temp * 1000, 0));
-		}
-
-		temp = maxPreviewSamples / 1000;
-		if (ImGui::DragInt("Max preview samples (thousand)", &temp, 20.0f, MIN_PREVIEW_SAMPLES, MAX_PREVIEW_SAMPLES, "%d", ImGuiSliderFlags_ClampOnInput))
-		{
-			setMaxPreviewSamples(glm::max(temp, 0) * 1000);
-		}
-
-		if (maxPreviewSamples > 0) ImGui::Text("Samples rendered: %d/%d", totalPreviewSamples / 1000, maxPreviewSamples / 1000);
-		else ImGui::Text("Samples rendered: %d", totalPreviewSamples / 1000);
-
 		ImGui::Spacing();
 
-		temp = initialIterations;
+		int temp = initialIterations;
 		if (ImGui::InputInt("Initial iterations", &temp))
 		{
 			setInitialIterations(glm::max(temp, 0));
 		}
 
 		temp = drawingIterations;
-		if (ImGui::InputInt("Drawing iterations", &temp))
+		if (ImGui::InputInt("Drawing iterations", &temp, 100, 1000))
 		{
 			setDrawingIterations(glm::max(temp, 0));
 		}
+
+		temp = maxPreviewFrames;
+		if (ImGui::InputInt("Max preview frames", &temp, 10, 100))
+		{
+			setMaxPreviewFrames(glm::max(temp, 0));
+		}
+
+		if (maxPreviewFrames > 0) ImGui::Text("Preview frames rendered: %d/%d", frameNum, maxPreviewFrames);
+		else ImGui::Text("Frames rendered: %d", frameNum);
 
 		ImGui::Spacing();
 
@@ -1014,20 +1013,20 @@ namespace ifs
 			renderTexHeight = previewTexHeight;
 		}
 
-		int n = numRenderSamples / 1000;
-		if (renderSampleNumMatchPreview) ImGui::BeginDisabled();
-		if (ImGui::InputInt("Number of samples (thousand)", &n, 1, 10))
+		int n = numRenderFrames;
+		if (renderFrameNumMatchPreview) ImGui::BeginDisabled();
+		if (ImGui::InputInt("Number of frames", &n, 1, 10))
 		{
 			if (n < 0) n = 0;
-			numRenderSamples = n * 1000;
+			numRenderFrames = n;
 		}
-		if (renderSampleNumMatchPreview) ImGui::EndDisabled();
+		if (renderFrameNumMatchPreview) ImGui::EndDisabled();
 
 		ImGui::PopItemWidth();
 
-		if (ImGui::Checkbox("Match current preview sample num", &renderSampleNumMatchPreview) && renderSampleNumMatchPreview)
+		if (ImGui::Checkbox("Match current preview frame num", &renderFrameNumMatchPreview) && renderFrameNumMatchPreview)
 		{
-			numRenderSamples = totalPreviewSamples;
+			numRenderFrames = frameNum;
 		}
 
 		if (ImGui::Button("Save as image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
@@ -1331,7 +1330,7 @@ namespace ifs
 		setPreviewTexSize(tw, th); //preview texture created here
 
 		//default values for options
-		renderSampleNumMatchPreview = true;
+		renderFrameNumMatchPreview = true;
 		renderTexSizeMatchPreview = true;
 		if (renderTexSizeMatchPreview)
 		{
@@ -1345,12 +1344,11 @@ namespace ifs
 			renderTexHeight = 2160;
 		}
 
-		setNumPreviewSamplesPerFrame(50000);
-		setMaxPreviewSamples(10000000);
-		totalPreviewSamples = 0;
-		numRenderSamples = 1000000;
+		numSampleThreads = 1024;
+		setMaxPreviewFrames(100);
+		numRenderFrames = 100;
 		setInitialIterations(20);
-		setDrawingIterations(5);
+		setDrawingIterations(1000);
 
 		setBrightness(0.5f);
 		setIntensity(1.0f);
@@ -1373,20 +1371,7 @@ namespace ifs
 
 	void updateKernelParams()
 	{
-		//if we're at the maximum number of samples, don't run the kernel
-		//if max is 0 then always run the desired number per frame
-		//if running the desired number would go over the max, run the amount to reach the max
-		//otherwise, can safely run the desired amount and not reach max
-
-		if (maxPreviewSamples == 0) actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame; //treat max of 0 as infinite
-		else if (totalPreviewSamples >= maxPreviewSamples) actualNumPreviewSamplesThisFrame = 0; //kernel will not be run anyway
-		else
-		{
-			if (totalPreviewSamples + numPreviewSamplesPerFrame > maxPreviewSamples) actualNumPreviewSamplesThisFrame = maxPreviewSamples - totalPreviewSamples;
-			else actualNumPreviewSamplesThisFrame = numPreviewSamplesPerFrame;
-		}
-
-		CLManager::setKernelRange(k_produceSamples, actualNumPreviewSamplesThisFrame);
+		CLManager::setKernelRange(k_produceSamples, numSampleThreads);
 		CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_previewTexture, b_variations, b_colors, b_weights, b_transforms });
 		CLManager::setKernelParamValue(k_produceSamples, 5, currentFlame.numVariations);
 		CLManager::setKernelParamValue(k_produceSamples, 6, initialIterations);
@@ -1396,7 +1381,7 @@ namespace ifs
 		CLManager::setKernelParamValue(k_produceSamples, 10, previewTexHeight);
 		CLManager::setKernelParamValue<uint8_t>(k_produceSamples, 11, plotWithoutAtomic);
 		CLManager::setKernelParamValue(k_produceSamples, 12, frameNum);
-		CLManager::setKernelParamValue(k_produceSamples, 13, numPreviewSamplesPerFrame);
+		CLManager::setKernelParamValue(k_produceSamples, 13, numSampleThreads);
 		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 14, currentFlame.numVariations);
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 15, currentFlame.numVariations * 3);
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 16, currentFlame.numVariations);
@@ -1441,12 +1426,11 @@ namespace ifs
 
 		updateKernelParams();
 
-		if (!paused && currentFlame.numVariations > 0 && actualNumPreviewSamplesThisFrame > 0)
+		if (!paused && currentFlame.numVariations > 0 && !getMaxPreviewFramesReached())
 		{
 			CLManager::runKernel(k_produceSamples);
 			frameNum++;
-			totalPreviewSamples += actualNumPreviewSamplesThisFrame;
-			if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
+			if (renderFrameNumMatchPreview) numRenderFrames = frameNum;
 
 			wantsPostProcess = true;
 		}
@@ -1464,9 +1448,8 @@ namespace ifs
 	{
 		//clear the preview buffer and start from 0 samples
 		CLManager::fillBuffer(b_previewTexture, previewTexWidth * previewTexHeight * 4, 0);
-		totalPreviewSamples = 0;
 		frameNum = 0;
-		if (renderSampleNumMatchPreview) numRenderSamples = totalPreviewSamples;
+		if (renderFrameNumMatchPreview) numRenderFrames = frameNum;
 		wantsPostProcess = true;
 	}
 
@@ -1543,15 +1526,28 @@ namespace ifs
 		return true;
 	}
 
+	std::string getStringTimestamp()
+	{
+		time_t rawTime;
+		tm* timeInfo;
+		char timeBuffer[32]; //probably only need 19 for YYYY-MM-DD_HH-MM-SS
+
+		time(&rawTime);
+		timeInfo = localtime(&rawTime);
+		strftime(timeBuffer, 80, "%F_%H-%M-%S", timeInfo);
+
+		return std::string(timeBuffer);
+	}
+
 	void saveProcessedImage()
 	{
 		//render to an image file
 
-		bool doNewRender = !(renderTexSizeMatchPreview && renderSampleNumMatchPreview);
+		bool doNewRender = !(renderTexSizeMatchPreview && renderFrameNumMatchPreview);
 		if (doNewRender && !checkImageCanRender()) return;
 
 		//set save path
-		std::string fileName = std::to_string(numRenderSamples);
+		std::string fileName = getStringTimestamp();
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
 			fileName += "_" + std::to_string(currentFlame.variations[i]);
@@ -1576,7 +1572,7 @@ namespace ifs
 			std::cout << "Rendering..." << std::endl;
 
 			//produce the samples on the texture
-			CLManager::setKernelRange(k_produceSamples, numRenderSamples);
+			CLManager::setKernelRange(k_produceSamples, numSampleThreads * numRenderFrames);
 			CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_renderTexture });
 			cam.setAspectRatio(renderTexWidth, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
@@ -1584,7 +1580,7 @@ namespace ifs
 			CLManager::setKernelParamValue(k_produceSamples, 10, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 11, plotWithoutAtomic);
 			CLManager::setKernelParamValue(k_produceSamples, 12, 0);
-			CLManager::setKernelParamValue(k_produceSamples, 13, numRenderSamples);
+			CLManager::setKernelParamValue(k_produceSamples, 13, numSampleThreads * numRenderFrames);
 			CLManager::runKernel(k_produceSamples);
 
 			std::cout << "Applying post process..." << std::endl;
@@ -1636,10 +1632,10 @@ namespace ifs
 	{
 		//save array of unprocessed pixel values
 		
-		bool doNewRender = !(renderTexSizeMatchPreview && renderSampleNumMatchPreview);
+		bool doNewRender = !(renderTexSizeMatchPreview && renderFrameNumMatchPreview);
 		if (doNewRender && !checkImageCanRender()) return;
 
-		std::string fileName = std::to_string(numRenderSamples);
+		std::string fileName = getStringTimestamp();
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
 			fileName += "_" + std::to_string(currentFlame.variations[i]);
@@ -1664,7 +1660,7 @@ namespace ifs
 			std::cout << "Rendering..." << std::endl;
 
 			//produce the samples on the texture
-			CLManager::setKernelRange(k_produceSamples, numRenderSamples);
+			CLManager::setKernelRange(k_produceSamples, numRenderFrames);
 			CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_renderTexture });
 			cam.setAspectRatio(renderTexWidth, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
@@ -1672,7 +1668,7 @@ namespace ifs
 			CLManager::setKernelParamValue(k_produceSamples, 10, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 11, plotWithoutAtomic);
 			CLManager::setKernelParamValue(k_produceSamples, 12, 0);
-			CLManager::setKernelParamValue(k_produceSamples, 13, numRenderSamples);
+			CLManager::setKernelParamValue(k_produceSamples, 13, numRenderFrames);
 			CLManager::runKernel(k_produceSamples);
 
 			CLManager::readBuffer(b_renderTexture, numPixels * 4, data);

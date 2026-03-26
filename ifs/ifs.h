@@ -23,11 +23,10 @@ namespace ifs
 	float getCamZoom();
 	float getCamAngle();
 	bool getPaused();
-	bool getMaxSamplesReached();
+	bool getMaxPreviewFramesReached();
 
 	void setPreviewTexSize(uint32_t width, uint32_t height);
-	void setNumPreviewSamplesPerFrame(uint32_t n);
-	void setMaxPreviewSamples(uint32_t n);
+	void setMaxPreviewFrames(uint32_t n);
 	void setInitialIterations(uint32_t n);
 	void setDrawingIterations(uint32_t n);
 	
