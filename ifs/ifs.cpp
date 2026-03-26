@@ -1660,7 +1660,7 @@ namespace ifs
 			std::cout << "Rendering..." << std::endl;
 
 			//produce the samples on the texture
-			CLManager::setKernelRange(k_produceSamples, numRenderFrames);
+			CLManager::setKernelRange(k_produceSamples, numSampleThreads * numRenderFrames);
 			CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_renderTexture });
 			cam.setAspectRatio(renderTexWidth, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
@@ -1668,7 +1668,7 @@ namespace ifs
 			CLManager::setKernelParamValue(k_produceSamples, 10, renderTexHeight);
 			CLManager::setKernelParamValue(k_produceSamples, 11, plotWithoutAtomic);
 			CLManager::setKernelParamValue(k_produceSamples, 12, 0);
-			CLManager::setKernelParamValue(k_produceSamples, 13, numRenderFrames);
+			CLManager::setKernelParamValue(k_produceSamples, 13, numSampleThreads * numRenderFrames);
 			CLManager::runKernel(k_produceSamples);
 
 			CLManager::readBuffer(b_renderTexture, numPixels * 4, data);
