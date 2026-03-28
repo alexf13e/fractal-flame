@@ -1024,7 +1024,7 @@ namespace ifs
 
 		ImGui::PopItemWidth();
 
-		if (ImGui::Checkbox("Match current preview frame num", &renderFrameNumMatchPreview) && renderFrameNumMatchPreview)
+		if (ImGui::Checkbox("Match preview frame num", &renderFrameNumMatchPreview) && renderFrameNumMatchPreview)
 		{
 			numRenderFrames = frameNum;
 		}
@@ -1324,6 +1324,11 @@ namespace ifs
 		CLManager::createKernel(k_postProcess);
 		CLManager::createKernel(k_floatToByte);
 
+		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 14, MAX_VARIATIONS);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 15, MAX_VARIATIONS * 3);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 16, MAX_VARIATIONS);
+		CLManager::setKernelParamLocal<float>(k_produceSamples, 17, MAX_VARIATIONS * 6);
+
 		cam.init(tw, th, glm::vec2(0.0f));
 		guideLineNum = 0;
 
@@ -1382,10 +1387,6 @@ namespace ifs
 		CLManager::setKernelParamValue<uint8_t>(k_produceSamples, 11, plotWithoutAtomic);
 		CLManager::setKernelParamValue(k_produceSamples, 12, frameNum);
 		CLManager::setKernelParamValue(k_produceSamples, 13, numSampleThreads);
-		CLManager::setKernelParamLocal<uint32_t>(k_produceSamples, 14, currentFlame.numVariations);
-		CLManager::setKernelParamLocal<float>(k_produceSamples, 15, currentFlame.numVariations * 3);
-		CLManager::setKernelParamLocal<float>(k_produceSamples, 16, currentFlame.numVariations);
-		CLManager::setKernelParamLocal<float>(k_produceSamples, 17, currentFlame.numVariations * 6);
 
 		uint32_t numPixels = previewTexWidth * previewTexHeight;
 		CLManager::setKernelRange(k_postProcess, numPixels);
