@@ -8,11 +8,15 @@
 #include <initializer_list>
 #include <vector>
 
+// #define CL_MANAGER_GL
+// #define CL_MANAGER_IMPL
+
+
 #define CL_HPP_ENABLE_EXCEPTIONS
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
-
 #include <CL/opencl.hpp>
+
 #ifdef CL_MANAGER_GL
 #if defined(__linux__)
 #define GLFW_EXPOSE_NATIVE_X11
@@ -20,19 +24,60 @@
 #elif defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WGL
 #endif
-#endif
 
-#ifdef CL_MANAGER_GL
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #endif
 
-#define WORKGROUP_SIZE 64
 #define BUILD_OPTIONS "-cl-finite-math-only -cl-no-signed-zeros -cl-mad-enable -w"
 #define CL_MANAGER_ENABLE_TIMING false
 
 
+namespace CLManager
+{
+    struct CLGLBuffer;
+    struct KernelTimeData;
+
+    const std::string getErrorString(int error);
+
+    #ifndef CL_MANAGER_GL
+    bool createDevice();
+    bool init(const std::string kernelSource);
+    #endif //CL_MANAGER_GL
+    bool loadSources(const std::string& kernelSource);
+
+    bool createKernel(const std::string& kernelName, uint32_t range=0);
+    bool setKernelRange(const std::string& kernelName, uint32_t range);
+    bool setKernelParamBuffer(const std::string& kernelName, uint32_t argStartNum, std::initializer_list<std::string> bufferNames);
+    template<class T> bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numElements);
+    template<class T> bool setKernelParamValue(const std::string& kernelName, uint32_t argStartNum, const T& value);
+    bool runKernel(const std::string& kernelName);
+
+    template<class T> bool createBuffer(const std::string& bufferName, const uint32_t numElements, const T* data = nullptr);
+    template<class T> bool readBuffer(const std::string& bufferName, const uint32_t numElements, const T* dest, const uint32_t offset=0);
+    template<class T> bool writeBuffer(const std::string& bufferName, const uint32_t numElements, const T* data, const uint32_t offset=0);
+    template<class T> bool fillBuffer(const std::string& bufferName, const uint32_t numElements, const T& value);
+    template<class T> bool copyBuffer(const std::string& src, const std::string& dst, const uint32_t srcOffset, const uint32_t dstOffset, const uint32_t numElements);
+    bool deleteBuffer(const std::string& bufferName);
+    float getTotalBufferMemUsageMB();
+
+    void newTimingFrame();
+    bool updateKernelTimings(const std::string& kernelName);
+
+    #ifdef CL_MANAGER_GL
+    bool createDevice(GLFWwindow* window);
+    bool init(GLFWwindow* window, const std::string& kernelSource);
+    bool setKernelParamGLBuffer(const std::string& kernelName, uint32_t argStartNum, std::initializer_list<std::string> bufferNames);
+    template<class T> bool createGLBuffer(const std::string& bufferName, const GLenum target, const uint32_t vao, const uint32_t numElements, T* data = nullptr);
+    template<class T> bool createGLBufferNoVAO(const std::string& bufferName, const GLenum target, const uint32_t numElements, T* data = nullptr);
+    template<class T> bool readGLBuffer(const std::string& bufferName, const uint32_t numElements, const T* dest, const uint32_t offset = 0);
+    template<class T> bool copyGLBuffer(const std::string& src, const std::string& dst, const uint32_t srcOffset, const uint32_t dstOffset, const uint32_t numElements);
+    #endif //CL_MANAGER_GL
+}
+#endif //CL_MANAGER_H
+
+#ifdef CL_MANAGER_IMPL
 namespace CLManager
 {
     #ifdef CL_MANAGER_GL
@@ -57,44 +102,17 @@ namespace CLManager
         }
     };
 
-    const std::string getErrorString(int error);
-
-    #ifndef CL_MANAGER_GL
-    bool createDevice();
-    bool init(const std::string kernelSource);
-    #endif
-    bool loadSources(const std::string& kernelSource);
-
-    bool createKernel(const std::string& kernelName, uint32_t range=0);
-    bool setKernelRange(const std::string& kernelName, uint32_t range);
-    bool setKernelParamBuffer(const std::string& kernelName, uint32_t argStartNum, std::initializer_list<std::string> bufferNames);
-    template<class T> bool setKernelParamLocal(const std::string& kernelName, uint32_t argStartNum, uint32_t numElements);
-    template<class T> bool setKernelParamValue(const std::string& kernelName, uint32_t argStartNum, const T& value);
-    bool runKernel(const std::string& kernelName);
-    
-    template<class T> bool createBuffer(const std::string& bufferName, const uint32_t numElements, const T* data = nullptr);
-    template<class T> bool readBuffer(const std::string& bufferName, const uint32_t numElements, const T* dest, const uint32_t offset=0);
-    template<class T> bool writeBuffer(const std::string& bufferName, const uint32_t numElements, const T* data, const uint32_t offset=0);
-    template<class T> bool fillBuffer(const std::string& bufferName, const uint32_t numElements, const T& value);
-    template<class T> bool copyBuffer(const std::string& src, const std::string& dst, const uint32_t srcOffset, const uint32_t dstOffset, const uint32_t numElements);
-    bool deleteBuffer(const std::string& bufferName);
-    float getTotalBufferMemUsageMB();
-    
-    void newTimingFrame();
-    bool updateKernelTimings(const std::string& kernelName);
-
-#ifdef CL_MANAGER_IMPL
     cl::Device device;
     cl::Context context;
     cl::CommandQueue queue;
     cl::Program program;
-    cl::NDRange rangeLocal;
 
     std::unordered_map<std::string, cl::Buffer> buffers;
     std::unordered_map<std::string, uint64_t> bufferMemUsage;
 
     std::unordered_map<std::string, cl::Kernel> kernels;
-    std::unordered_map<std::string, cl::NDRange> kernelRanges;
+    std::unordered_map<std::string, cl::NDRange> kernelGlobalRanges;
+    std::unordered_map<std::string, cl::NDRange> kernelLocalRanges;
     #if CL_MANAGER_ENABLE_TIMING
     std::unordered_map<std::string, std::vector<KernelTimeData>> kernelTimings;
     std::vector<std::string> kernelPrintOrder;
@@ -176,7 +194,7 @@ namespace CLManager
         }
     }
 
-#ifndef CL_MANAGER_GL
+    #ifndef CL_MANAGER_GL
     bool createDevice()
     {
         std::vector<cl::Platform> all_platforms;
@@ -237,15 +255,13 @@ namespace CLManager
         if (!createDevice()) return false;
         if (!loadSources(kernelSource)) return false;
 
-        rangeLocal = cl::NDRange(WORKGROUP_SIZE);
-
         #if CL_MANAGER_ENABLE_TIMING
         timingHistorySize = 300;
         #endif
 
         return true;
     }
-#endif //CL_MANAGER_GL
+    #endif //CL_MANAGER_GL
 
     bool loadSources(const std::string& kernelSource)
     {
@@ -271,7 +287,7 @@ namespace CLManager
             std::cout << "failed to compile kernel code: " << getErrorString(err.err()) << std::endl;
             return false;
         }
-        
+
 
         return true;
     }
@@ -284,7 +300,34 @@ namespace CLManager
             return false;
         }
 
-        kernels[kernelName] = cl::Kernel(program, kernelName.c_str());
+        try
+        {
+            kernels[kernelName] = cl::Kernel(program, kernelName.c_str());
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error creating kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
+            return false;
+        }
+
+        int error;
+        try
+        {
+            kernelLocalRanges[kernelName] = cl::NDRange(kernels[kernelName].getWorkGroupInfo<CL_KERNEL_WORK_GROUP_SIZE>(device, &error));
+            if (error != CL_SUCCESS)
+            {
+                std::cout << "error querying kernel workgroup size for kernel " << kernelName << ": "
+                    << getErrorString(error) << std::endl;
+                return false;
+            }
+        }
+        catch (cl::Error err)
+        {
+            std::cout << "error querying kernel workgroup size for kernel " << kernelName << ": "
+                << getErrorString(err.err()) << std::endl;
+            return false;
+        }
+
         setKernelRange(kernelName, range);
 
         #if CL_MANAGER_ENABLE_TIMING
@@ -303,7 +346,8 @@ namespace CLManager
             return false;
         }
 
-        kernelRanges[kernelName] = cl::NDRange(((range + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE) * WORKGROUP_SIZE);
+        uint32_t rangeMultiple = kernelLocalRanges[kernelName].get()[0];
+        kernelGlobalRanges[kernelName] = cl::NDRange(((range + rangeMultiple - 1) / rangeMultiple) * rangeMultiple);
         return true;
     }
 
@@ -367,7 +411,7 @@ namespace CLManager
                 << kernelName << ": " << getErrorString(err.err()) << std::endl;
             return false;
         }
-        
+
         return true;
     }
 
@@ -421,8 +465,8 @@ namespace CLManager
 
         try
         {
-            error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName], rangeLocal,
-                nullptr, timingEvent);
+            error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelGlobalRanges[kernelName],
+                kernelLocalRanges[kernelName], nullptr, timingEvent);
 
             if (error != CL_SUCCESS)
             {
@@ -438,9 +482,9 @@ namespace CLManager
         #else
         try
         {
-            int error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelRanges[kernelName],
-                rangeLocal);
-    
+            int error = queue.enqueueNDRangeKernel(kernels[kernelName], cl::NullRange, kernelGlobalRanges[kernelName],
+                kernelLocalRanges[kernelName]);
+
             if (error != CL_SUCCESS)
             {
                 std::cout << "error enqueueing kernel " << kernelName << ": " << getErrorString(error) << std::endl;
@@ -468,7 +512,8 @@ namespace CLManager
         }
         catch (cl::Error err)
         {
-            std::cout << "error finishing queue running kernel " << kernelName << ": " << getErrorString(err.err()) << std::endl;
+            std::cout << "error finishing queue running kernel " << kernelName << ": " << getErrorString(err.err())
+                << std::endl;
             success = false;
         }
 
@@ -526,7 +571,7 @@ namespace CLManager
             std::cout << "tried to read non-existent buffer: " << bufferName << std::endl;
             return false;
         }
-        
+
         bool success = true;
         int error;
         try
@@ -552,7 +597,7 @@ namespace CLManager
         }
 
         if (success == false) return false;
-        
+
         try
         {
             error = queue.finish();
@@ -599,7 +644,7 @@ namespace CLManager
             std::cout << "error writing buffer " << bufferName << ": " << getErrorString(err.err()) << std::endl;
             success = false;
         }
-        
+
         if (success == false) return false;
 
         try
@@ -692,7 +737,7 @@ namespace CLManager
         int error;
         try {
             error = queue.enqueueCopyBuffer(buffers[src], buffers[dst], srcOffset * sizeof(T), dstOffset * sizeof(T),
-               numElements * sizeof(T));
+                numElements * sizeof(T));
             if (error != CL_SUCCESS)
             {
                 std::cout << "error enqueueing copying buffer " << src << "[" << srcOffset << ":" << numElements << "] to "
@@ -716,16 +761,16 @@ namespace CLManager
             error = queue.finish();
             if (error != CL_SUCCESS)
             {
-                std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
-                    "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
+                std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements
+                    << "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(error)
                     << std::endl;
                 success = false;
             }
         }
         catch (cl::Error err)
         {
-            std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
-                "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
+            std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements
+                << "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
                 << std::endl;
             success = false;
         }
@@ -805,10 +850,9 @@ namespace CLManager
         }
         catch (cl::Error err)
         {
-            std::cout << "error finishing queue copying buffer " << src << "[" << srcOffset << ":" << numElements <<
-                "] to " << dst << "[" << dstOffset << ":" << numElements << "]: " << getErrorString(err.err())
+            std::cout << "error getting start time from event " << kernelName << ": " << std::to_string(err.err())
                 << std::endl;
-                return false;
+            return false;
         }
 
         try
@@ -825,7 +869,7 @@ namespace CLManager
         {
             std::cout << "error getting end time from event " << kernelName << ": " << std::to_string(error)
                 << std::endl;
-                return false;
+            return false;
         }
 
         double nanoSeconds = time_end - time_start;
@@ -837,18 +881,7 @@ namespace CLManager
         return true;
     }
 
-#endif //CL_MANAGER_IMPL
-
-#ifdef CL_MANAGER_GL
-    bool createDevice(GLFWwindow* window);
-    bool init(GLFWwindow* window, const std::string& kernelSource);
-    bool setKernelParamGLBuffer(const std::string& kernelName, uint32_t argStartNum, std::initializer_list<std::string> bufferNames);
-    template<class T> bool createGLBuffer(const std::string& bufferName, const GLenum target, const uint32_t vao, const uint32_t numElements, T* data = nullptr);
-    template<class T> bool createGLBufferNoVAO(const std::string& bufferName, const GLenum target, const uint32_t numElements, T* data = nullptr);
-    template<class T> bool readGLBuffer(const std::string& bufferName, const uint32_t numElements, const T* dest, const uint32_t offset = 0);
-    template<class T> bool copyGLBuffer(const std::string& src, const std::string& dst, const uint32_t srcOffset, const uint32_t dstOffset, const uint32_t numElements);
-
-#ifdef CL_MANAGER_IMPL
+    #ifdef CL_MANAGER_GL
     std::unordered_map<std::string, CLGLBuffer> glBuffers;
 
     bool createDevice(GLFWwindow* window)
@@ -930,12 +963,10 @@ namespace CLManager
         if (!createDevice(window)) return false;
         if (!loadSources(kernelSource)) return false;
 
-        rangeLocal = cl::NDRange(WORKGROUP_SIZE);
-
         #if CL_MANAGER_ENABLE_TIMING
         timingHistorySize = 300;
         #endif
-        
+
         return true;
     }
 
@@ -947,7 +978,7 @@ namespace CLManager
             std::cout << "tried to set GL buffer parameter of non-existent kernel: " << kernelName << std::endl;
             return false;
         }
-        
+
         bool success = true;
         for (const std::string& bufferName : bufferNames)
         {
@@ -1003,15 +1034,14 @@ namespace CLManager
         glBindVertexArray(0);
 
         if (error != CL_SUCCESS) return false;
-        
+
         bufferMemUsage[bufferName] = numElements * sizeof(T);
 
         return true;
     }
 
     template<class T>
-    bool createGLBufferNoVAO(const std::string& bufferName, const GLenum target, const uint32_t numElements,
-        T* data)
+    bool createGLBufferNoVAO(const std::string& bufferName, const GLenum target, const uint32_t numElements, T* data)
     {
         //same as createGLBuffer(), but does not automatically bind/unbind a vao
 
@@ -1085,8 +1115,6 @@ namespace CLManager
         return true;
     }
 
-#endif //CL_MANAGER_IMPL
-#endif //CL_MANAGER_GL
+    #endif //CL_MANAGER_GL
 }
-
-#endif //CL_MANAGER_H
+#endif //CL_MANAGER_IMPL
