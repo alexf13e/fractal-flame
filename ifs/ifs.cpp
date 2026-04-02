@@ -887,8 +887,14 @@ namespace ifs
 
 		ImGui::Spacing();
 
-		int temp = initialIterations;
-		if (ImGui::InputInt("Initial iterations", &temp))
+		int temp = numSampleThreads;
+		if (ImGui::DragInt("Num threads", &temp, 4.0f, 1, 16384, "%d", ImGuiSliderFlags_ClampOnInput))
+		{
+			numSampleThreads = temp;
+		}
+
+		temp = initialIterations;
+		if (ImGui::InputInt("Initial iterations", &temp, 1, 10))
 		{
 			setInitialIterations(glm::max(temp, 0));
 		}
@@ -1349,7 +1355,9 @@ namespace ifs
 			renderTexHeight = 2160;
 		}
 
-		numSampleThreads = 1024;
+		numSampleThreads = CLManager::kernelLocalRanges[k_produceSamples].get()[0]
+			* CLManager::device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+		
 		setMaxPreviewFrames(100);
 		numRenderFrames = 100;
 		setInitialIterations(20);
