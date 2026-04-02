@@ -888,7 +888,7 @@ namespace ifs
 		ImGui::Spacing();
 
 		int temp = numSampleThreads;
-		if (ImGui::DragInt("Num threads", &temp, 4.0f, 1, 16384, "%d", ImGuiSliderFlags_ClampOnInput))
+		if (ImGui::DragInt("Sample threads", &temp, 4.0f, 1, 16384, "%d", ImGuiSliderFlags_ClampOnInput))
 		{
 			numSampleThreads = temp;
 		}

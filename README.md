@@ -38,6 +38,7 @@ Note that typing a value directly with `ctrl + click`  allows for some inputs to
 * Clear image - resets the preview, clearing all accumulated samples.
 * Clear every frame - prevents samples from accumulating by resetting the preview buffer every frame.
 * Faster plotting - improves performance when lots of points try to render to the same pixel at the same time but consequently losing the colour from some points (disables atomic addition).
+* Sample threads - how many GPU threads run every frame to produce sample points, this should default to an optimal value. Lower values may increase frame rate slightly but not enough to compensate for the reduced samples and produce the image faster. Higher values will make the image appear "more" each frame, but will usually take longer to process each frame.
 * Initial iterations - how many iterations should be applied to the sample point before it is rendered. This reduces noise from the random start point of the sample.
 * Drawing iterations - how many iterations should be applied after the initial ones. The position of the sample point will be rendered after each of these iterations, and effectively just increases the number of samples per frame when initial iterations is sufficiently high (e.g. 20+).
 * Max preview frames - how many frames should be rendered before stopping, set to 0 for infinite. This is useful to find where the image has enough samples for good visibility without being overexposed (and prevent the GPU from running at full speed forever).
