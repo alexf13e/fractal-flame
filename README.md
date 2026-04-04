@@ -1,19 +1,25 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. See here example images with config files: https://alexf13e.neocities.org/fractals/.
+This program is for generating simple fractal flames on the GPU using OpenCL. See here for example images with config files: https://alexf13e.neocities.org/fractals/.
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
 
 See here for an explanation of how the images are produced: https://flam3.com/flame_draves.pdf.
 
+Some more powerful but (in my opinion) overwhelming programs include:
+* Apophysis: https://sourceforge.net/projects/apophysis7x/
+* Chaotica: https://chaoticafractals.com/
+* Fractorium: http://fractorium.com/
+* Iterator.it: https://iterator.it/
+
 <img width="1730" height="1276" alt="Screenshot_20260326_234609" src="https://github.com/user-attachments/assets/6072f7d0-b6a2-4ac9-8e52-fcadd0c65667" />
 
 
 ## Installation
-Download either the Windows or Linux zip file from the releases page: https://github.com/alexf13e/fractal-flame/releases. Extract the contents of the zip file, then run the executable. You will probably get a smartscreen popup on Windows and I'm not important enough to stop that from appearing. Click run anyway if you trust me, or by all means build the program yourself. To uninstall, delete the folder the zip was extracted to.
+Download either the Windows or Linux zip file from the releases page: https://github.com/alexf13e/fractal-flame/releases. Extract the folder in the zip file, then run the executable. You will probably get a smartscreen popup on Windows and I'm not important enough to stop that from appearing. Click run anyway if you trust me, or by all means build the program yourself.
 
-For Linux:
-* The program may not use the same GPU for OpenGL and OpenCL if you have more than one (e.g. in a laptop). If you have an Nvidia GPU, running `nvrun.sh` should make OpenGL and OpenCL use the same GPU. I do not have an AMD GPU available to test if a similar step is required for them.
-* If you are using Wayland, I have been unable to get OpenGL and OpenCL to cooperate there, so it is currently unsupported (sorry).
+There is a Visual Studio solution provided for building on Windows, and some bash scripts for building on Linux with g++. Of course, you can build the program with whatever tools you wish; hopefully the included files give enough indication of what libraries are required (also see [build dependencies](https://github.com/alexf13e/fractal-flame#build-dependencies) at the end of the readme).
+
+To uninstall, delete the folder the zip was extracted to. There is no proper install/uninstall process or additional files used by the program.
 
 ## Usage
 Note: the program can create flickering images when moving the camera or changing settings with sliders very slowly.
@@ -25,6 +31,10 @@ The "colour processing" section on the left can help if the image is looking to 
 Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. The raw pixel data can also be saved if you wish to manually process it - see the render section below for more details on the file format.
 
 Configuration files to reproduce a given image can be saved and loaded with the buttons in the top right. Some example ones are available here: https://alexf13e.neocities.org/fractals/.
+
+For Linux:
+* The program may not use the same GPU for OpenGL and OpenCL if you have more than one (e.g. in a laptop). If you have an Nvidia GPU, running `nvrun.sh` should make OpenGL and OpenCL use the same GPU. I do not have an AMD GPU available to test if a similar step is required for them.
+* If you are using Wayland, I have been unable to get OpenGL and OpenCL to cooperate there, so it is currently unsupported (sorry).
 
 ### Controls
 The keyboard or mouse can be used to move, rotate and scale the fractal. Rotating and scaling is always relative to the centre of the screen. Note that keyboard controls move the **camera**, i.e. pressing the `A` key will move the camera to the left, and therefore the fractal moves to the right.
@@ -100,4 +110,4 @@ Sometimes useful information will be displayed here. There may also be informati
 * OpenCL - https://github.com/KhronosGroup/OpenCL-SDK
 * stb image - https://github.com/nothings/stb/tree/master
 
-On Linux, chances are your package manager has some of these, e.g. `glfw` `glfw-devel` `glm` `nvidia-opencl` `mesa-opencl`
+On Linux, chances are your package manager has some of these, e.g. `glfw` `glm` `nvidia-opencl` `mesa-opencl`
