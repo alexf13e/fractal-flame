@@ -76,6 +76,10 @@ namespace ifs
 		uint32_t drawingIterations;
 		
 		Camera2D cam;
+		glm::vec2 lastRenderedCamPos;
+		float lastRenderedCamZoom;
+		float lastRenderedCamAngle;
+		glm::mat4 matPausedCamTransform;
 		uint32_t guideLineNum;
 
 		uint32_t previewTexWidth, previewTexHeight;
@@ -94,6 +98,8 @@ namespace ifs
 		bool plotWithoutAtomic;
 		bool wantsPostProcess;
 		bool drawMouseLine;
+		bool clearOnUnpause;
+		bool showGUI;
 
 
 		FlameConfig currentFlame;
@@ -245,18 +251,16 @@ namespace ifs
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom, const float deltaAngle)
 	{
-		if (paused) return;
-
 		cam.updatePosition(deltaPos);
 		cam.updateZoom(deltaZoom);
 		cam.updateRotation(deltaAngle);
-		clearSingleFrame = true;
+		
+		if (paused) updatePausedCamMatrix();
+		else clearSingleFrame = true;
 	}
 
 	void updateCamPositionMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
-		if (paused) return;
-
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		currentMousePosNDC.y = 1.0f - currentMousePosNDC.y;
@@ -271,14 +275,13 @@ namespace ifs
 		if (glm::length2(deltaPos) > 0.0f)
 		{
 			cam.updatePosition(deltaPos);
-			clearSingleFrame = true;
+			if (paused) updatePausedCamMatrix();
+			else clearSingleFrame = true;
 		}
 	}
 
 	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
-		if (paused) return;
-
 		//rotate and zoom the view such that the point under the mouse stays attached to the mouse, and the centre of the screen stays at the centre
 		//the mouse point wants to be NDC so that 0,0 is in screen centre
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
@@ -296,14 +299,13 @@ namespace ifs
 		if (deltaZoom != 1.0f)
 		{
 			cam.updateZoom(deltaZoom);
-			clearSingleFrame = true;
+			if (paused) updatePausedCamMatrix();
+			else clearSingleFrame = true;
 		}
 	}
 
 	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
-		if (paused) return;
-
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		currentMousePosNDC *= cam.view;
@@ -325,14 +327,70 @@ namespace ifs
 		if (deltaAngle != 0.0f)
 		{
 			cam.updateRotation(deltaAngle);
-			clearSingleFrame = true;
+			if (paused) updatePausedCamMatrix();
+			else clearSingleFrame = true;
 		}
 	}
 
 	void resetCam()
 	{
 		cam.reset();
-		clearSingleFrame = true;
+		if (paused) updatePausedCamMatrix();
+		else clearSingleFrame = true;
+	}
+
+	void togglePause()
+	{
+		paused = !paused;
+		
+		glUseProgram(shFullScreenTri.getID());
+
+		if (paused)
+		{
+			lastRenderedCamPos = cam.position;
+			lastRenderedCamZoom = cam.zoom;
+			lastRenderedCamAngle = cam.angle;
+			matPausedCamTransform = glm::mat4(1.0f);
+			glUniform1i(glGetUniformLocation(shFullScreenTri.getID(), "paused"), 1);
+			glUniformMatrix4fv(glGetUniformLocation(shFullScreenTri.getID(), "matPausedCamTransform"), 1, GL_FALSE, &matPausedCamTransform[0][0]);
+		}
+		else
+		{
+			glUniform1i(glGetUniformLocation(shFullScreenTri.getID(), "paused"), 0);
+
+			if (clearOnUnpause)
+			{
+				clearSingleFrame = true;
+				clearOnUnpause = false;
+			}
+		}
+
+		glUseProgram(0);
+	}
+
+	void updatePausedCamMatrix()
+	{
+		glm::vec2 deltaPos = glm::rotateZ(glm::vec3(cam.position - lastRenderedCamPos, 0.0f), -cam.angle);
+		float deltaZoom = cam.zoom / lastRenderedCamZoom;
+		float deltaAngle = cam.angle - lastRenderedCamAngle;
+		glm::vec2 view;
+		if (cam.ar > 1.0f) view = glm::vec2(cam.ar, 1.0f);
+		else view = glm::vec2(1.0f, 1.0f / cam.ar);
+
+		glm::mat4 matPausedCamTransform = glm::mat4(1.0f);
+		matPausedCamTransform = glm::translate(matPausedCamTransform, glm::vec3(0.5f, 0.5f, 0.5f));
+		matPausedCamTransform = glm::scale(matPausedCamTransform, 1.0f / glm::vec3(view, 1.0f));
+		matPausedCamTransform = glm::rotate(matPausedCamTransform, deltaAngle, glm::vec3(0.0f, 0.0f, 1.0f));
+		matPausedCamTransform = glm::scale(matPausedCamTransform, 1.0f / glm::vec3(deltaZoom, deltaZoom, 1.0f));
+		matPausedCamTransform = glm::translate(matPausedCamTransform, glm::vec3(deltaPos * cam.zoom * 0.5f, 0.0f));
+		matPausedCamTransform = glm::scale(matPausedCamTransform, glm::vec3(view, 1.0f));
+		matPausedCamTransform = glm::translate(matPausedCamTransform, -glm::vec3(0.5f, 0.5f, 0.5f));
+
+		glUseProgram(shFullScreenTri.getID());
+		glUniformMatrix4fv(glGetUniformLocation(shFullScreenTri.getID(), "matPausedCamTransform"), 1, GL_FALSE, &matPausedCamTransform[0][0]);
+		glUseProgram(0);
+
+		clearOnUnpause = true;
 	}
 
 	float getCamZoom()
@@ -377,6 +435,8 @@ namespace ifs
 		{
 			clearSingleFrame = true;
 		}
+
+		if (paused) togglePause();
 	}
 
 	void setInitialIterations(uint32_t n)
@@ -384,6 +444,7 @@ namespace ifs
 		//number of iterations which will run on sample points before their positions are drawn to the buffer
 		initialIterations = n;
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setDrawingIterations(uint32_t n)
@@ -391,6 +452,7 @@ namespace ifs
 		//number of iterations after top of initialIterations, where the sample position at each iteration WILL be drawn
 		drawingIterations = n;
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setBrightness(float b)
@@ -402,9 +464,9 @@ namespace ifs
 
 	void setIntensity(float v)
 	{
-		//intensity blends between using
-		//	rgba = pow(rgba, 1 / gamma)
-		//	rgba *= pow(a, 1 / gamma)
+		//intensity blends between
+		//	0: pow(pix.xyz, 1.0f / gamma)
+		//	1: pow(pix.xyz, 1.0f / gamma) * pix.w * brightness 
 		intensity = v;
 		wantsPostProcess = true;
 	}
@@ -446,7 +508,8 @@ namespace ifs
 			setVariationRotation(index, 0.0f);
 			setVariationScale(index, glm::vec2(1.0f));
 
-			clearSingleFrame = true;
+			if (paused) clearOnUnpause = true;
+			else clearSingleFrame = true;
 		}
 	}
 
@@ -467,6 +530,7 @@ namespace ifs
 			setVariationScale(index, glm::vec2(randomFloat(), randomFloat()));
 
 			clearSingleFrame = true;
+			if (paused) togglePause();
 		}
 	}
 
@@ -500,6 +564,7 @@ namespace ifs
 		CLManager::writeBuffer(b_transforms, MAX_VARIATIONS * 6, currentFlame.transforms);
 
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setVariationNum(uint32_t index, uint32_t variation)
@@ -525,6 +590,7 @@ namespace ifs
 		currentFlame.variations[index] = variation;
 		CLManager::writeBuffer(b_variations, 1, &currentFlame.variations[index], index);
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setVariationcolor(uint32_t index, glm::vec3 rgb)
@@ -537,6 +603,7 @@ namespace ifs
 
 		CLManager::writeBuffer(b_colors, 3, &currentFlame.colors[index * 3], index * 3);
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setVariationWeight(uint32_t index, float w)
@@ -546,6 +613,7 @@ namespace ifs
 		currentFlame.weights[index] = w;
 		CLManager::writeBuffer(b_weights, 1, &currentFlame.weights[index], index);
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void updateVariationTransform(uint32_t index)
@@ -568,6 +636,7 @@ namespace ifs
 
 		CLManager::writeBuffer(b_transforms, 6, &currentFlame.transforms[index * 6], index * 6);
 		clearSingleFrame = true;
+		if (paused) togglePause();
 	}
 
 	void setVariationTranslation(uint32_t index, const glm::vec2& t)
@@ -613,7 +682,7 @@ namespace ifs
 		}
 
 		clearSingleFrame = true;
-		paused = false;
+		if (paused) togglePause();
 	}
 
 	void saveFlameFile()
@@ -849,6 +918,8 @@ namespace ifs
 		ImGui::Text("Move fractal");
 		ImGui::Text("Zoom fractal");
 		ImGui::Text("Rotate fractal");
+		ImGui::Text("Camera speed");
+		ImGui::Text("Toggle GUI");
 
 		ImGui::NextColumn();
 
@@ -858,6 +929,8 @@ namespace ifs
 		ImGui::Text("Left click");
 		ImGui::Text("Shift + left click");
 		ImGui::Text("Ctrl + left click");
+		ImGui::Text("X C");
+		ImGui::Text("H");
 
 		ImGui::Columns(1);
 
@@ -870,7 +943,7 @@ namespace ifs
 
 		if (ImGui::Button(paused ? "Resume" : "Pause", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
-			paused = !paused;
+			togglePause();
 		}
 
 		if (ImGui::Button("Clear image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
@@ -883,6 +956,7 @@ namespace ifs
 		if (ImGui::Checkbox("Faster plotting (less accurate)", &plotWithoutAtomic))
 		{
 			clearSingleFrame = true;
+			if (paused) togglePause();
 		}
 
 		ImGui::Spacing();
@@ -932,7 +1006,8 @@ namespace ifs
 			if (delta != glm::vec2(0.0f))
 			{
 				cam.updatePosition(delta);
-				clearSingleFrame = true;
+				if (paused) clearOnUnpause = true;
+				else clearSingleFrame = true;
 			}
 		}
 
@@ -944,7 +1019,8 @@ namespace ifs
 			if (delta != 1.0f)
 			{
 				cam.updateZoom(delta);
-				clearSingleFrame = true;
+				if (paused) clearOnUnpause = true;
+				else clearSingleFrame = true;
 			}
 		}
 
@@ -957,7 +1033,8 @@ namespace ifs
 			if (delta != 0.0f)
 			{
 				cam.updateRotation(delta);
-				clearSingleFrame = true;
+				if (paused) clearOnUnpause = true;
+				else clearSingleFrame = true;
 			}
 		}
 
@@ -1336,6 +1413,11 @@ namespace ifs
 		CLManager::setKernelParamLocal<float>(k_produceSamples, 17, MAX_VARIATIONS * 6);
 
 		cam.init(tw, th, glm::vec2(0.0f));
+		lastRenderedCamPos = cam.position;
+		lastRenderedCamZoom = cam.zoom;
+		lastRenderedCamAngle = cam.angle;
+		glm::mat4 matPausedCamTransform = glm::mat4(1.0f);
+
 		guideLineNum = 0;
 
 		setPreviewTexSize(tw, th); //preview texture created here
@@ -1373,6 +1455,7 @@ namespace ifs
 		plotWithoutAtomic = true;
 		wantsPostProcess = false;
 		drawMouseLine = false;
+		clearOnUnpause = false;
 
 		//start the program with 3 random variations
 		addRandomVariation();
@@ -1466,6 +1549,7 @@ namespace ifs
 	{
 		//draw the preview buffer to the screen
 		glUseProgram(shFullScreenTri.getID());
+		
 		glBindVertexArray(vao_fullScreenTri);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -1552,7 +1636,7 @@ namespace ifs
 	{
 		//render to an image file
 
-		bool doNewRender = !(renderTexSizeMatchPreview && renderFrameNumMatchPreview);
+		bool doNewRender = !renderTexSizeMatchPreview || !renderFrameNumMatchPreview || clearOnUnpause;
 		if (doNewRender && !checkImageCanRender()) return;
 
 		//set save path
@@ -1641,7 +1725,7 @@ namespace ifs
 	{
 		//save array of unprocessed pixel values
 		
-		bool doNewRender = !(renderTexSizeMatchPreview && renderFrameNumMatchPreview);
+		bool doNewRender = !renderTexSizeMatchPreview || !renderFrameNumMatchPreview || clearOnUnpause;
 		if (doNewRender && !checkImageCanRender()) return;
 
 		std::string fileName = getStringTimestamp();

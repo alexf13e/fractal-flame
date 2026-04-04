@@ -76,6 +76,8 @@ static std::map<int, Key> keyMap = {
 glm::vec2 prevMousePos, currentMousePos;
 bool firstMouseMovement;
 
+bool showGUI;
+
 
 void onKeyPress(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -190,6 +192,8 @@ bool init()
 	prevMousePos = glm::vec2(-1.0f);
 	firstMouseMovement = true;
 
+	showGUI = true;
+
 	return true;
 }
 
@@ -212,6 +216,8 @@ bool update()
 
 	if (keyMap.at(GLFW_KEY_C).getReleased()) moveMult *= 2.0f;
 	if (keyMap.at(GLFW_KEY_X).getReleased()) moveMult *= 0.5f;
+
+	if (keyMap.at(GLFW_KEY_H).getReleased()) showGUI = !showGUI;
 
 	//print maybe useful debug info
 	if (keyMap.at(GLFW_KEY_P).getReleased())
@@ -265,7 +271,7 @@ bool update()
 	
 	prevMousePos = currentMousePos;
 
-	ifs::createGUI(frameDuration);
+	if (showGUI) ifs::createGUI(frameDuration);
 	if (firstFrame)
 	{
 		ImGui::SetWindowFocus(NULL);

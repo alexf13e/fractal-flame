@@ -20,10 +20,14 @@ namespace ifs
 	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
 	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
 	void resetCam();
+	
 	float getCamZoom();
 	float getCamAngle();
 	bool getPaused();
 	bool getMaxPreviewFramesReached();
+	void togglePause();
+	void updatePausedCamMatrix();
+
 
 	void setPreviewTexSize(uint32_t width, uint32_t height);
 	void setMaxPreviewFrames(uint32_t n);
