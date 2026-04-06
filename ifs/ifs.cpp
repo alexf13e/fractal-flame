@@ -84,8 +84,7 @@ namespace ifs
 
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
-		bool renderTexSizeMatchPreview;
-		bool renderFrameNumMatchPreview;
+		bool renderMatchPreview;
 		uint8_t renderNextFrame, saveUnprocessedDataNextFrame;
 
 		float brightness;
@@ -418,7 +417,7 @@ namespace ifs
 		//resize the preview buffer (usually to match window after it is resized)
 		previewTexWidth = width;
 		previewTexHeight = height;
-		if (renderTexSizeMatchPreview)
+		if (renderMatchPreview)
 		{
 			renderTexWidth = width;
 			renderTexHeight = height;
@@ -1080,7 +1079,14 @@ namespace ifs
 
 		int res[2] = { (int)renderTexWidth, (int)renderTexHeight };
 
-		if (renderTexSizeMatchPreview) ImGui::BeginDisabled();
+		if (ImGui::Checkbox("Match preview", &renderMatchPreview) && renderMatchPreview)
+		{
+			renderTexWidth = previewTexWidth;
+			renderTexHeight = previewTexHeight;
+			numRenderFrames = frameNum;
+		}
+
+		if (renderMatchPreview) ImGui::BeginDisabled();
 		if (ImGui::InputInt2("Render resolution", res))
 		{
 			res[0] = glm::clamp(res[0], MIN_IMAGE_SIZE, MAX_IMAGE_SIZE);
@@ -1088,29 +1094,16 @@ namespace ifs
 			renderTexWidth = res[0];
 			renderTexHeight = res[1];
 		}
-		if (renderTexSizeMatchPreview) ImGui::EndDisabled();
-
-		if (ImGui::Checkbox("Match preview size", &renderTexSizeMatchPreview) && renderTexSizeMatchPreview)
-		{
-			renderTexWidth = previewTexWidth;
-			renderTexHeight = previewTexHeight;
-		}
 
 		int n = numRenderFrames;
-		if (renderFrameNumMatchPreview) ImGui::BeginDisabled();
 		if (ImGui::InputInt("Number of frames", &n, 1, 10))
 		{
 			if (n < 0) n = 0;
 			numRenderFrames = n;
 		}
-		if (renderFrameNumMatchPreview) ImGui::EndDisabled();
+		if (renderMatchPreview) ImGui::EndDisabled();
 
 		ImGui::PopItemWidth();
-
-		if (ImGui::Checkbox("Match preview frame num", &renderFrameNumMatchPreview) && renderFrameNumMatchPreview)
-		{
-			numRenderFrames = frameNum;
-		}
 
 		if (ImGui::Button("Save as image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
@@ -1423,9 +1416,8 @@ namespace ifs
 		setPreviewTexSize(tw, th); //preview texture created here
 
 		//default values for options
-		renderFrameNumMatchPreview = true;
-		renderTexSizeMatchPreview = true;
-		if (renderTexSizeMatchPreview)
+		renderMatchPreview = true;
+		if (renderMatchPreview)
 		{
 			renderTexWidth = previewTexWidth;
 			renderTexHeight = previewTexHeight;
@@ -1522,7 +1514,7 @@ namespace ifs
 		{
 			CLManager::runKernel(k_produceSamples);
 			frameNum++;
-			if (renderFrameNumMatchPreview) numRenderFrames = frameNum;
+			if (renderMatchPreview) numRenderFrames = frameNum;
 
 			wantsPostProcess = true;
 		}
@@ -1541,7 +1533,7 @@ namespace ifs
 		//clear the preview buffer and start from 0 samples
 		CLManager::fillBuffer(b_previewTexture, previewTexWidth * previewTexHeight * 4, 0);
 		frameNum = 0;
-		if (renderFrameNumMatchPreview) numRenderFrames = frameNum;
+		if (renderMatchPreview) numRenderFrames = frameNum;
 		wantsPostProcess = true;
 	}
 
@@ -1636,7 +1628,7 @@ namespace ifs
 	{
 		//render to an image file
 
-		bool doNewRender = !renderTexSizeMatchPreview || !renderFrameNumMatchPreview || clearOnUnpause;
+		bool doNewRender = !renderMatchPreview || clearOnUnpause;
 		if (doNewRender && !checkImageCanRender()) return;
 
 		//set save path
@@ -1725,7 +1717,7 @@ namespace ifs
 	{
 		//save array of unprocessed pixel values
 		
-		bool doNewRender = !renderTexSizeMatchPreview || !renderFrameNumMatchPreview || clearOnUnpause;
+		bool doNewRender = !renderMatchPreview || clearOnUnpause;
 		if (doNewRender && !checkImageCanRender()) return;
 
 		std::string fileName = getStringTimestamp();

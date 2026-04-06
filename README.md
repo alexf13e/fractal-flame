@@ -96,13 +96,12 @@ result = clamp(pix, 0.0f, 1.0f)
 ```
 
 ### Render
+* Match preview - the resolution and number of samples will match the preview to produce the same image.
 * Render resolution - the size in pixels of the output file.
   * This does not affect the preview, which uses the resolution of the window.
-  * NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, and are often darker. Compensate for this with the darkness slider or more samples.
-* Match preview size - forces the output resolution to match the window resolution. Untick to set resolution manually.
+  * NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, so are often darker. Compensate for this with the darkness slider or more samples.
 * Number of frames - how many frames-worth of samples to render.
   * Should be set higher when rendering higher resolution images as more samples are needed to cover all the pixels.
-* Match current preview sample num - forces the number of samples in the rendered image to match how many samples have been calculated so far in the preview. Untick this to set the number of samples manually.
 * Save as image - click to select a location to save the image, and then it will be rendered.
 * Save unprocessed data - save the pixel data without applying colour processing or converting to an image format.
   * The output file format begins with 8 bytes for the image dimensions - 4 byte `unsigned integers` for the width and height. The rest of the file consists of the pixel data, where each pixel component is stored in `RGBA` order, each as a 4 byte `float`.
