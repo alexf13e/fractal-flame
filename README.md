@@ -13,7 +13,7 @@ Some more powerful programs by other people include:
 * Fractorium: http://fractorium.com/
 * Iterator.it: https://iterator.it/
 
-<img width="1730" height="1276" alt="Screenshot_20260326_234609" src="https://github.com/user-attachments/assets/6072f7d0-b6a2-4ac9-8e52-fcadd0c65667" />
+<img width="1808" height="1238" alt="Screenshot_20260406_195047" src="https://github.com/user-attachments/assets/889c7244-ac5f-4a16-a3cd-9083d3b515fa" />
 
 
 ## Installation
