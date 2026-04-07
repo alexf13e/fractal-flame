@@ -692,7 +692,7 @@ namespace ifs
 			fileName += "_" + std::to_string(currentFlame.variations[i]);
 		}
 
-		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "ifs_fflame" } };
 		std::string fileDir = FileDialog::saveDialog(fileName, filters);
 		if (fileDir == "")
 		{
@@ -790,7 +790,7 @@ namespace ifs
 			return true;
 		};
 
-		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "flame" } };
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "ifs_flame" } };
 		std::string fileDir = FileDialog::openDialog(filters);
 		if (fileDir == "")
 		{
