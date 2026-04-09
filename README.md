@@ -1,5 +1,8 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. It can only do still images, and has a resolution limit dependent only on your GPU's VRAM.
+This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on you GPU's VRAM. Limitations are mentioned below.
+
+<img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
+
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
 
@@ -13,7 +16,22 @@ Some more powerful programs by other people include:
 * Fractorium: http://fractorium.com/
 * Iterator.it: https://iterator.it/
 
-<img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
+Limitations of the program (and why):
+* Not compatible with `.flame` files from other programs.
+  * I have not implemented all their features, and it didn't make much sense to only apply parts of the files settings which are supported.
+  * My own config file format is just arbitrary plain text and will likely be replaced with something more robust in the future.
+* Compared to the programs above, only a small subset variations have been implemented (around 30, mainly from the flam3 paper).
+  * I have not spent the time to research and implement all the ones that exist.
+  * To simplify the UI by not having a massive list to scroll/search through and show additional options for certain variations.
+  * To simplify the data being sent to the GPU (e.g. not supporting paramterised variations).
+* Only post-transforms can be applied to variations.
+  * Simplify UI by only having one set of transformation options. May implement tabs to show different options or only one variation at a time.
+* Resolution limit roughly proportional to 1/4th of GPU VRAM.
+  * Allocating the histogram in one chunk of memory limits it to be around 1/4th of GPU VRAM.
+  * May implement a rendering system which can divide larger images to be rendered in sections, requiring samples to be re-calculated in every section.
+* Colour processing options are somewhat limited.
+  * Not my area of expertise; the currently available settings have felt sufficient for me.
+  * The un-processed histogram can be exported and manually processed.
 
 
 ## Installation
@@ -117,7 +135,7 @@ Sometimes useful information will be displayed here. There may also be informati
 * Randomise [value] - randomises this value for each variation in the list. Useful for searching for nice shapes and colour schemes and forming a gambling addiction.
 * Add variation - adds a variation with default settings.
 * Variation - this is the main characteristic of the shape which will be formed, and refers to the list found here: https://flam3.com/flame_draves.pdf#page=16.
-* Colour - the colour associated with the variation. May look different in the image due to colour processing settings.
+* Colour - the colour associated with the variation. May look different in the image due to colour processing settings. The colours are randomised and blended in the Oklab colour space.
 * Weight - affects the probability of this variation being chosen by a sample point. The chance of a variation being chosen is its weight divided by the sum of all weights. E.g. two variations with a weight of 1 will each have a 1/2 chance to be chosen, weights of 0.5 and 1 have 1/3 and 2/3 respectively.
 * Rotation, translation and scale - transforms points after applying the variation function (i.e. post-transform) every time that variation is used.
   * Rotation and scale use the translation position as the centre.
