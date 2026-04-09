@@ -152,5 +152,6 @@ There is a limit of 64 variations at once. This is fairly arbitrary (a maximum o
 * Native File Dialog Extended - https://github.com/btzy/nativefiledialog-extended
 * OpenCL - https://github.com/KhronosGroup/OpenCL-SDK
 * stb image - https://github.com/nothings/stb/tree/master
+* json - https://github.com/nlohmann/json
 
 On Linux, chances are your package manager has some of these, e.g. `glfw` `glm` `nvidia-opencl` `mesa-opencl`

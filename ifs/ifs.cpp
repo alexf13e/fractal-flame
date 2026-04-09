@@ -12,6 +12,8 @@
 #include "stb_image_write.h"
 #include "imgui.h"
 
+#include "json.hpp"
+
 #include <glm/gtc/constants.hpp>
 #include <glm/gtx/matrix_transform_2d.hpp>
 #include <glm/gtx/norm.hpp>
@@ -193,14 +195,22 @@ namespace ifs
 
 		constexpr float MIN_CAMERA_ZOOM = 0.001f;
 		constexpr float MAX_CAMERA_ZOOM = 50.0f;
+
 		constexpr float MIN_THRESHOLD = 0.0f;
 		constexpr float MAX_THRESHOLD = 10.0f;
+
+		constexpr float DEFAULT_BRIGHTNESS = 0.5f;
 		constexpr float MIN_BRIGHTNESS = 0.0f;
 		constexpr float MAX_BRIGHTNESS = 2.0f;
+
+		constexpr float DEFAULT_INTENSITY = 1.0f;
 		constexpr float MIN_INTENSITY = 0.0f;
 		constexpr float MAX_INTENSITY = 1.0f;
+
+		constexpr float DEFAULT_GAMMA = 2.2f;
 		constexpr float MIN_GAMMA = 0.1f;
 		constexpr float MAX_GAMMA = 5.0f;
+
 		constexpr int MIN_IMAGE_SIZE = 32;
 		constexpr int MAX_IMAGE_SIZE = 16384;
 
@@ -692,7 +702,7 @@ namespace ifs
 			fileName += "_" + std::to_string(currentFlame.variations[i]);
 		}
 
-		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "ifs_fflame" } };
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "json" } };
 		std::string fileDir = FileDialog::saveDialog(fileName, filters);
 		if (fileDir == "")
 		{
@@ -707,82 +717,66 @@ namespace ifs
 			return;
 		}
 
+		nlohmann::json outputData;
+		outputData["variations"] = nlohmann::json::array();
 		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
 		{
-			fileStream <<
-				std::to_string(currentFlame.variations[i]) << "," <<
-				std::to_string(currentFlame.colors[i * 3]) << "," <<
-				std::to_string(currentFlame.colors[i * 3 + 1]) << "," <<
-				std::to_string(currentFlame.colors[i * 3 + 2]) << "," <<
-				std::to_string(currentFlame.weights[i]) << ", " <<
-				std::to_string(currentFlame.translations[i].x) << ", " <<
-				std::to_string(currentFlame.translations[i].y) << ", " <<
-				std::to_string(currentFlame.rotations[i]) << ", " <<
-				std::to_string(currentFlame.scales[i].x) << ", " <<
-				std::to_string(currentFlame.scales[i].y) <<
-				std::endl;
+			outputData["variations"].push_back(
+			{
+				{ "variation", currentFlame.variations[i] },
+				{ "color", {currentFlame.colors[i * 3], currentFlame.colors[i * 3 + 1], currentFlame.colors[i * 3 + 2]} },
+				{ "weight", currentFlame.weights[i] },
+				{ "translation", {currentFlame.translations[i].x, currentFlame.translations[i].y} },
+				{ "rotation", currentFlame.rotations[i] },
+				{ "scale", {currentFlame.scales[i].x, currentFlame.scales[i].y} }
+			});
 		}
 
-		fileStream << std::to_string(cam.position.x) << ", " << std::to_string(cam.position.y) << ", " <<
-			std::to_string(cam.angle) << ", " << std::to_string(cam.zoom) << std::endl;
+		outputData["camera"] =
+		{
+			{ "position", {cam.position.x, cam.position.y} },
+			{ "angle", cam.angle },
+			{ "zoom", cam.zoom }
+		};
 
-		fileStream << std::to_string(brightness) << ", " << std::to_string(intensity) << ", " << std::to_string(gamma)
-			<< std::endl;
+		outputData["colorProcessing"] = 
+		{
+			{ "brightness", brightness },
+			{ "intensity", intensity },
+			{ "gamma", gamma },
+		};
+
+		fileStream << std::setw(4) << outputData;
 	}
 
 	void loadFlameFile()
 	{
-		auto printErrInvalidData = []() {
-			appendInfo("Flame config file contains invalid data, loading cancelled");
+        //i love user input error handling and feedback
+
+        //helper functions
+		auto checkValuePresent = [](const nlohmann::json& data, const std::string& name) {
+            if (!data.contains(name))
+            {
+                appendInfo("Loading cancelled - missing required data: " + name);
+                return false;
+            }
+
+            return true;
 		};
 
-		auto checkVarNum = [&](const std::string& val, uint32_t* dest) {
-			int varNum;
-			try
-			{
-				varNum = std::stoi(val);
-			}
-			catch (std::invalid_argument e)
-			{
-				printErrInvalidData();
-				return false;
-			}
-
-			bool varNumValid = false;
-			for (uint32_t validVarNum : VALID_VARIATIONS)
-			{
-				if (varNum == validVarNum)
-				{
-					varNumValid = true;
-					break;
-				}
-			}
-
-			if (!varNumValid)
-			{
-				printErrInvalidData();
-				return false;
-			}
-
-			*dest = varNum;
-			return true;
-		};
-
-		auto checkValueFloat = [&](const std::string& val, float min, float max, float* dest) {
+		auto checkValueFloat = [](const nlohmann::json& data, const std::string& name, float min, float max, float* dest) {
 			float v;
 			try
 			{
-				v = std::stof(val);
+				v = data[name].get<float>();
 			}
-			catch (std::invalid_argument e)
+			catch (nlohmann::json::type_error e)
 			{
-				printErrInvalidData();
 				return false;
 			}
 
 			if (v < min || v > max)
 			{
-				printErrInvalidData();
 				return false;
 			}
 
@@ -790,7 +784,154 @@ namespace ifs
 			return true;
 		};
 
-		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "ifs_flame" } };
+        auto checkValueFloatArray = [](const nlohmann::json& data, const std::string& name, float min, float max, std::vector<float>* dest) {
+			std::vector<float> values;
+			try
+			{
+				values = data[name].get<std::vector<float>>();
+			}
+			catch (nlohmann::json::type_error e)
+			{
+				return false;
+			}
+
+            for (const float v : values)
+            {
+                if (v < min || v > max)
+                {
+                    return false;
+                }
+            }
+
+			*dest = values; //annoying copy but only being used for arrays of 2-3 elements
+			return true;
+		};
+
+        //helper functions for the helper functions
+        auto checkVariationValuePresent = [](const nlohmann::json& data, const std::string& name, const uint32_t variationIndex) {
+            if (!data.contains(name))
+            {
+                appendInfo("Loading cancelled - missing " + name + " in variation " + std::to_string(variationIndex));
+                return false;
+            }
+
+            return true;
+        };
+
+		auto checkVariationNum = [](const nlohmann::json& data, uint32_t* dest, const uint32_t variationIndex) {
+			int variationNum;
+			try
+			{
+				variationNum = data["variation"].get<int>();
+			}
+			catch (nlohmann::json::type_error e)
+			{
+                appendInfo("Loading cancelled - invalid variation num in variation " + std::to_string(variationIndex));
+				return false;
+			}
+
+			bool variationNumValid = false;
+			for (uint32_t validVariationNum : VALID_VARIATIONS)
+			{
+				if (variationNum == validVariationNum)
+				{
+					variationNumValid = true;
+					break;
+				}
+			}
+
+			if (!variationNumValid)
+			{
+                appendInfo("Loading cancelled - invalid variation num in variation " + std::to_string(variationIndex));
+				return false;
+			}
+
+			*dest = variationNum;
+			return true;
+		};
+
+		auto checkVariationValueFloat = [&checkValueFloat](const nlohmann::json& data, const std::string& name, float min, float max, float* dest, const uint32_t variationIndex) {
+            if (!checkValueFloat(data, name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + " in variation " + std::to_string(variationIndex));
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkVariationValueFloatArray = [&checkValueFloatArray](const nlohmann::json& data, const std::string& name, float min, float max, std::vector<float>* dest, const uint32_t variationIndex) {
+            if (!checkValueFloatArray(data, name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + " in variation " + std::to_string(variationIndex));
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkCamValuePresent = [](const nlohmann::json& data, const std::string& name) {
+            if (!data["camera"].contains(name))
+            {
+                appendInfo("Loading cancelled - missing " + name + " in camera settings");
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkCamValueFloat = [&checkValueFloat](const nlohmann::json& data, const std::string& name, float min, float max, float* dest) {
+            if (!checkValueFloat(data["camera"], name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + " in camera settings");
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkCamValueFloatArray = [&checkValueFloatArray](const nlohmann::json& data, const std::string& name, float min, float max, std::vector<float>* dest) {
+            if (!checkValueFloatArray(data["camera"], name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + "in camera settings");
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkColorValuePresent = [](const nlohmann::json& data, const std::string& name) {
+            if (!data["colorProcessing"].contains(name))
+            {
+                appendInfo("Loading cancelled - missing " + name + " in color processing settings");
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkColorValueFloat = [&checkValueFloat](const nlohmann::json& data, const std::string& name, float min, float max, float* dest) {
+            if (!checkValueFloat(data["colorProcessing"], name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + " in color processing settings");
+                return false;
+            }
+
+            return true;
+        };
+
+        auto checkColorValueFloatArray = [&checkValueFloatArray](const nlohmann::json& data, const std::string& name, float min, float max, std::vector<float>* dest) {
+            if (!checkValueFloatArray(data["colorProcessing"], name, min, max, dest))
+            {
+                appendInfo("Loading cancelled - invalid " + name + "in color processing settings");
+                return false;
+            }
+
+            return true;
+        };
+
+
+		std::vector<nfdu8filteritem_t> filters = { { "Flame config", "json" } };
 		std::string fileDir = FileDialog::openDialog(filters);
 		if (fileDir == "")
 		{
@@ -801,98 +942,127 @@ namespace ifs
 		std::ifstream fileStream(fileDir);
 		if (!fileStream.is_open())
 		{
-			appendInfo("Failed to access flame config file: " + fileDir);
+			appendInfo("Loading cancelled - failed to access flame config file: " + fileDir);
 			return;
 		}
+		
+        //read the file in, deal with error if it is not valid json
+		nlohmann::json inputData;
+        try
+        {
+            fileStream >> inputData;
+        }
+        catch (nlohmann::json::parse_error e)
+        {
+            appendInfo("Loading cancelled - invalid json file (see terminal for details)");
+            std::cout << e.what() << std::endl;
+            return;
+        }
 
-
+        //temporary config to hold data while it is loaded
 		FlameConfig newFlameConfig{ 0 };
-		std::string line;
-		std::vector<std::string> lines;
-		while (std::getline(fileStream, line))
-		{
-			lines.push_back(line);
-		}
 
-		if (lines.size() == 0)
+		if (inputData.size() == 0)
 		{
-			//file is empty, interpret as wanting to have no variations
+			//file just has empty json brackets, interpret as wanting to have no variations and default camera and colour settings
 			loadFlameConfig(newFlameConfig);
+            cam.reset();
+            setBrightness(DEFAULT_BRIGHTNESS);
+            setIntensity(DEFAULT_INTENSITY);
+            setGamma(DEFAULT_GAMMA);
 			return;
 		}
 
-		cam.reset();
-		for (uint32_t i = 0; i < lines.size(); i++)
-		{
-			line = lines[i];
-			std::stringstream ssline(line);
-			std::vector<std::string> values;
-			std::string val;
-			while (std::getline(ssline, val, ','))
-			{
-				values.push_back(val);
-			}
+        //make sure all required values are present
+        if (!checkValuePresent(inputData, "variations")) return;
+        if (!checkValuePresent(inputData, "camera")) return;
+        if (!checkValuePresent(inputData, "colorProcessing")) return;
 
-			if (values.size() >= 5 && values.size() <= 10) //variation number, color L, color C, color h, weight, [translation x, y, rotation, scale x, y]
-			{
-				//if not all values are provided, set them to a default value
-				newFlameConfig.numVariations++;
-				newFlameConfig.variations[i] = 0;
-				newFlameConfig.colors[i * 3] = 1.0f;
-				newFlameConfig.colors[i * 3 + 1] = 1.0f;
-				newFlameConfig.colors[i * 3 + 2] = 1.0f;
-				newFlameConfig.weights[i] = 1.0f;
-				newFlameConfig.translations[i].x = 0.0f;
-				newFlameConfig.translations[i].y = 0.0f;
-				newFlameConfig.rotations[i] = 0.0f;
-				newFlameConfig.scales[i].x = 1.0f;
-				newFlameConfig.scales[i].y = 1.0f;
+        if (!checkCamValuePresent(inputData, "position")) return;
+        if (!checkCamValuePresent(inputData, "angle")) return;
+        if (!checkCamValuePresent(inputData, "zoom")) return;
 
-				if (values.size() > 0 && !checkVarNum(values[0], &newFlameConfig.variations[i])) return;
-				if (values.size() > 1 && !checkValueFloat(values[1], 0.0f, 1.0f, &newFlameConfig.colors[i * 3])) return;
-				if (values.size() > 2 && !checkValueFloat(values[2], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 1])) return;
-				if (values.size() > 3 && !checkValueFloat(values[3], 0.0f, 1.0f, &newFlameConfig.colors[i * 3 + 2])) return;
-				if (values.size() > 4 && !checkValueFloat(values[4], 0.0f, 1.0f, &newFlameConfig.weights[i])) return;
+        if (!checkColorValuePresent(inputData, "brightness")) return;
+        if (!checkColorValuePresent(inputData, "intensity")) return;
+        if (!checkColorValuePresent(inputData, "gamma")) return;
 
-				//transform values don't technically have a valid range, so only checking the string value is a number
-				if (values.size() > 5 && !checkValueFloat(values[5], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].x)) return;
-				if (values.size() > 6 && !checkValueFloat(values[6], -FLT_MAX, FLT_MAX, &newFlameConfig.translations[i].y)) return;
-				if (values.size() > 7 && !checkValueFloat(values[7], -FLT_MAX, FLT_MAX, &newFlameConfig.rotations[i])) return;
-				if (values.size() > 8 && !checkValueFloat(values[8], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].x)) return;
-				if (values.size() > 9 && !checkValueFloat(values[9], -FLT_MAX, FLT_MAX, &newFlameConfig.scales[i].y)) return;
-			}
-			else if (values.size() == 4) //camera x, y, angle, zoom
-			{
-				glm::vec2 pos;
-				float angle, zoom;
-				if (!checkValueFloat(values[0], -FLT_MAX, FLT_MAX, &pos.x)) return;
-				if (!checkValueFloat(values[1], -FLT_MAX, FLT_MAX, &pos.y)) return;
-				if (!checkValueFloat(values[2], -FLT_MAX, FLT_MAX, &angle)) return;
-				if (!checkValueFloat(values[3], MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM, &zoom)) return;
+        if (inputData["variations"].size() >= MAX_VARIATIONS)
+        {
+            appendInfo("Loading cancelled - file contained more than the maximum number of variations");
+            return;
+        }        
 
-				cam.updatePosition(pos);
-				cam.updateRotation(angle);
-				cam.updateZoom(zoom);
-			}
-			else if (values.size() == 3) //brightness, intensity, gamma
-			{
-				float _brightness, _intensity, _gamma;
-				if (!checkValueFloat(values[0], MIN_BRIGHTNESS, MAX_BRIGHTNESS, &_brightness)) return;
-				if (!checkValueFloat(values[1], MIN_INTENSITY, MAX_INTENSITY, &_intensity)) return;
-				if (!checkValueFloat(values[2], MIN_GAMMA, MAX_GAMMA, &_gamma)) return;
+        std::vector<float> tempArray;
+        for (const auto& variationDataPair : inputData["variations"].items())
+        {
+            uint32_t variationIndex = newFlameConfig.numVariations;
+            const nlohmann::json& variationData = variationDataPair.value();
 
-				brightness = _brightness;
-				intensity = _intensity;
-				gamma = _gamma;
-			}
-			else
-			{
-				appendInfo("Flame config file does not match expected format, loading cancelled");
-				return;
-			}
-		}
+            //check variation settings are present
+            if (!checkVariationValuePresent(variationData, "variation", variationIndex)) return;
+            if (!checkVariationValuePresent(variationData, "color", variationIndex)) return;
+            if (!checkVariationValuePresent(variationData, "weight", variationIndex)) return;
+            if (!checkVariationValuePresent(variationData, "translation", variationIndex)) return;
+            if (!checkVariationValuePresent(variationData, "rotation", variationIndex)) return;
+            if (!checkVariationValuePresent(variationData, "scale", variationIndex)) return;
 
+
+            //check variation settings are valid
+            if (!checkVariationNum(variationData, &newFlameConfig.variations[variationIndex], variationIndex)) return;
+
+            if (!checkVariationValueFloatArray(variationData, "color", 0.0f, 1.0f, &tempArray, variationIndex) || tempArray.size() != 3) return;
+            newFlameConfig.colors[variationIndex * 3 + 0] = tempArray[0];
+            newFlameConfig.colors[variationIndex * 3 + 1] = tempArray[1];
+            newFlameConfig.colors[variationIndex * 3 + 2] = tempArray[2];
+
+            if (!checkVariationValueFloat(variationData, "weight", 0.0f, FLT_MAX, &newFlameConfig.weights[variationIndex], variationIndex)) return;
+
+            tempArray.clear();
+            if (!checkVariationValueFloatArray(variationData, "translation", -FLT_MAX, FLT_MAX, &tempArray, variationIndex) || tempArray.size() != 2) return;
+            newFlameConfig.translations[variationIndex].x = tempArray[0];
+            newFlameConfig.translations[variationIndex].y = tempArray[1];
+
+            if (!checkVariationValueFloat(variationData, "rotation", -FLT_MAX, FLT_MAX, &newFlameConfig.weights[variationIndex], variationIndex)) return;
+
+            tempArray.clear();
+            if (!checkVariationValueFloatArray(variationData, "scale", -FLT_MAX, FLT_MAX, &tempArray, variationIndex) || tempArray.size() != 2) return;
+            newFlameConfig.scales[variationIndex].x = tempArray[0];
+            newFlameConfig.scales[variationIndex].y = tempArray[1];
+
+            newFlameConfig.numVariations++;
+        }
+
+
+        //check camera settings are valid
+        glm::vec2 newCamPos;
+        float newCamAngle, newCamZoom;
+
+        tempArray.clear();
+        if (!checkCamValueFloatArray(inputData, "position", -FLT_MAX, FLT_MAX, &tempArray)) return;
+        newCamPos.x = tempArray[0];
+        newCamPos.y = tempArray[1];
+
+        if (!checkCamValueFloat(inputData, "angle", -FLT_MAX, FLT_MAX, &newCamAngle)) return;
+        if (!checkCamValueFloat(inputData, "zoom", -FLT_MAX, FLT_MAX, &newCamZoom)) return;
+
+        
+        //check colour processing values are valid
+        float newBrightness, newIntensity, newGamma;
+        if (!checkColorValueFloat(inputData, "brightness", MIN_BRIGHTNESS, MAX_BRIGHTNESS, &newBrightness)) return;
+        if (!checkColorValueFloat(inputData, "intensity", MIN_INTENSITY, MAX_INTENSITY, &newIntensity)) return;
+        if (!checkColorValueFloat(inputData, "gamma", MIN_GAMMA, MAX_GAMMA, &newGamma)) return;
+
+
+        //actually apply the values
 		loadFlameConfig(newFlameConfig);
+
+        cam.updatePosition(newCamPos);
+        cam.updateRotation(newCamAngle);
+        cam.updateZoom(newCamZoom);
+
+        setBrightness(newBrightness);
+        setIntensity(newIntensity);
+        setGamma(newGamma);
 	}
 
 	void createGUI(const float frameDuration)
@@ -1437,9 +1607,9 @@ namespace ifs
 		setInitialIterations(20);
 		setDrawingIterations(1000);
 
-		setBrightness(0.5f);
-		setIntensity(1.0f);
-		setGamma(2.2f);
+		setBrightness(DEFAULT_BRIGHTNESS);
+		setIntensity(DEFAULT_INTENSITY);
+		setGamma(DEFAULT_GAMMA);
 
 		paused = false;
 		clearEveryFrame = false;
