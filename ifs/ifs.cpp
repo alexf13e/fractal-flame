@@ -1022,7 +1022,7 @@ namespace ifs
             newFlameConfig.translations[variationIndex].x = tempArray[0];
             newFlameConfig.translations[variationIndex].y = tempArray[1];
 
-            if (!checkVariationValueFloat(variationData, "rotation", -FLT_MAX, FLT_MAX, &newFlameConfig.weights[variationIndex], variationIndex)) return;
+            if (!checkVariationValueFloat(variationData, "rotation", -FLT_MAX, FLT_MAX, &newFlameConfig.rotations[variationIndex], variationIndex)) return;
 
             tempArray.clear();
             if (!checkVariationValueFloatArray(variationData, "scale", -FLT_MAX, FLT_MAX, &tempArray, variationIndex) || tempArray.size() != 2) return;
@@ -1056,6 +1056,7 @@ namespace ifs
         //actually apply the values
 		loadFlameConfig(newFlameConfig);
 
+        cam.reset();
         cam.updatePosition(newCamPos);
         cam.updateRotation(newCamAngle);
         cam.updateZoom(newCamZoom);
