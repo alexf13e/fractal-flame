@@ -19,7 +19,7 @@ Some more powerful programs by other people include:
 Limitations of the program (and why):
 * Not compatible with `.flame` files from other programs.
   * I have not implemented all their features, and it didn't make much sense to only apply parts of the files settings which are supported.
-  * My own config file format is just arbitrary plain text and will likely be replaced with something more robust in the future.
+  * The file format I currently use is just a `.json` to store the variation, camera and color processing settings.
 * Compared to the programs above, only a small subset variations have been implemented (around 30, mainly from the flam3 paper).
   * I have not spent the time to research and implement all the ones that exist.
   * To simplify the UI by not having a massive list to scroll/search through and show additional options for certain variations.
