@@ -430,6 +430,9 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 {
 	//draw the sample point to the buffer
 
+	//these values always get drawn in bottom left corner and should be ignored
+	if (isinf(p.x) || isnan(p.x) || isinf(p.y) || isnan(p.y)) return;
+
 	//transform sample point to camera view
 	float4 pClip = mat4MulVec4(matView, (float4)(p.x, p.y, 0.0f, 1.0f));
 
@@ -437,10 +440,10 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 	float v = pClip.y * 0.5f + 0.5f;
 
 	//discard positions outside of the buffer
+	if (u < 0.0f || u >= 1.0f || v < 0.0f || v >= 1.0f) return;
+	
 	int pixelX = u * texWidth;
 	int pixelY = v * texHeight;
-
-	if (pixelX < 0 || pixelX >= texWidth || pixelY < 0 || pixelY >= texHeight) return;
 
 	//use of atomics here can cause big slow down if lots of points end up in the same pixel
 	uint pixelIndex = pixelY * texWidth + pixelX;
