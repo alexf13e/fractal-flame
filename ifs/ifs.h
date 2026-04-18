@@ -2,8 +2,11 @@
 #define IFS_H
 
 #include <string>
+#include <vector>
 
 #include <glm/glm.hpp>
+
+#include "Camera2D.h"
 
 
 namespace ifs
@@ -63,16 +66,38 @@ namespace ifs
 	void update();
 	void clearSamples();
 	void draw();
-
-	bool checkImageCanRender();
-	void saveProcessedImage();
-	void saveUnprocessedData();
-
+	
 	float randomFloat();
 	uint32_t randomVariationNum();
 	glm::vec3 randomOKLChtoRGB();
 
 	void appendInfo(const std::string& s);
+	void replaceInfo(const uint32_t i, const std::string& s);
+}
+
+namespace FileRender
+{
+	namespace
+	{
+		struct Tile
+		{
+			uint32_t width, height;
+			mat4wrap matView;
+		};
+
+		bool checkImageCanRender(uint32_t width, uint32_t height);
+		std::string getStringTimestamp();
+		std::vector<Tile> getTiles();
+
+		void taskSaveProcessedImage();
+		void taskSaveUnprocessedData();
+	}
+
+	bool getRunning();
+	void cancel();
+
+	void saveProcessedImage();
+	void saveUnprocessedData();
 }
 
 #endif

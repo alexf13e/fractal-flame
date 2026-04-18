@@ -5,8 +5,8 @@
 #include <stack>
 #include <fstream>
 #include <sstream>
-#include <list>
 #include <time.h>
+#include <vector>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -55,9 +55,6 @@ namespace ifs
 
 		std::string b_previewTexture = "previewTexture";
 		std::string glb_previewTextureProcessed = "previewTextureProcessed";
-
-		std::string b_renderTexture = "renderTexture";
-		std::string b_renderTextureBytes = "renderTextureBytes";
 
 		std::string b_variations = "variations";
 		std::string b_colors = "colors";
@@ -212,10 +209,10 @@ namespace ifs
 		constexpr float MAX_GAMMA = 5.0f;
 
 		constexpr int MIN_IMAGE_SIZE = 32;
-		constexpr int MAX_IMAGE_SIZE = 16384;
+		constexpr int MAX_IMAGE_SIZE = 65536; //probably best to put something
 
 		constexpr uint32_t infoLength = 5;
-		std::list<std::string> info;
+		std::vector<std::string> info;
 	}
 
 	void acquireGLObjects()
@@ -1278,13 +1275,14 @@ namespace ifs
 
 		if (ImGui::Button("Save as image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
-			renderNextFrame = 2; //to allow imgui to display info that saving has started, delay actually starting until next frame
+			//to allow imgui to display info that saving has started, delay actually starting until next frame.
+			renderNextFrame = 2;
 			appendInfo("Saving image...");
 		}
 
 		if (ImGui::Button("Save unprocessed data", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
-			saveUnprocessedDataNextFrame = 2; //to allow imgui to display info that saving has started, delay actually starting until next frame
+			saveUnprocessedDataNextFrame = 2;
 			appendInfo("Saving unprocessed data...");
 		}
 
@@ -1656,12 +1654,12 @@ namespace ifs
 	{
 		if (renderNextFrame == 1)
 		{
-			saveProcessedImage();
+			FileRender::saveProcessedImage();
 		}
 
 		if (saveUnprocessedDataNextFrame == 1)
 		{
-			saveUnprocessedData();
+			//saveUnprocessedData();
 		}
 
 		if (renderNextFrame > 0) renderNextFrame--;
@@ -1761,134 +1759,11 @@ namespace ifs
 
 	}
 
-	bool checkImageCanRender()
-	{
-		uint32_t numPixels = renderTexWidth * renderTexHeight;
-		uint64_t numBytes = numPixels * 4 * sizeof(float);
-		uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
-		if (numBytes > maxAllocationSize)
-		{
-			std::cout << "Failed to allocate GPU memory for image" << std::endl;
-			std::cout << "required: " + std::to_string(numBytes / 1024 / 1024) + "MB, max allocation: " +
-				std::to_string(maxAllocationSize / 1024 / 1024) + "MB" << std::endl;
-				
-			appendInfo("Failed to allocate GPU memory for image");
-
-			uint32_t maxSquareRes = glm::sqrt(maxAllocationSize / sizeof(float) / 4);
-			appendInfo("Try a lower resolution - the largest square image would be " + std::to_string(maxSquareRes) + "x" + std::to_string(maxSquareRes));
-			return false;
-		}
-
-		return true;
-	}
-
-	std::string getStringTimestamp()
-	{
-		time_t rawTime;
-		tm* timeInfo;
-		char timeBuffer[32]; //probably only need 19 for YYYY-MM-DD_HH-MM-SS
-
-		time(&rawTime);
-		timeInfo = localtime(&rawTime);
-		strftime(timeBuffer, 80, "%F_%H-%M-%S", timeInfo);
-
-		return std::string(timeBuffer);
-	}
-
-	void saveProcessedImage()
-	{
-		//render to an image file
-
-		bool doNewRender = !renderMatchPreview || clearOnUnpause;
-		if (doNewRender && !checkImageCanRender()) return;
-
-		//set save path
-		std::string fileName = getStringTimestamp();
-		for (uint32_t i = 0; i < currentFlame.numVariations; i++)
-		{
-			fileName += "_" + std::to_string(currentFlame.variations[i]);
-		}
-
-		std::vector<nfdu8filteritem_t> filters = { { "PNG Image", "png" } };
-		std::string renderOutputPath = FileDialog::saveDialog(fileName, filters);
-		if (renderOutputPath == "")
-		{
-			//pressed cancel, so don't render
-			appendInfo("Cancelled");
-			return;
-		}
-
-		uint32_t numPixels = renderTexWidth * renderTexHeight;
-		CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
-
-		if (doNewRender)
-		{
-			CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
-
-			std::cout << "Rendering..." << std::endl;
-
-			//produce the samples on the texture
-			CLManager::setKernelRange(k_produceSamples, numSampleThreads * numRenderFrames);
-			CLManager::setKernelParamBuffer(k_produceSamples, 0, { b_renderTexture });
-			cam.setAspectRatio(renderTexWidth, renderTexHeight);
-			CLManager::setKernelParamValue(k_produceSamples, 8, cam.getMatViewCL());
-			CLManager::setKernelParamValue(k_produceSamples, 9, renderTexWidth);
-			CLManager::setKernelParamValue(k_produceSamples, 10, renderTexHeight);
-			CLManager::setKernelParamValue(k_produceSamples, 11, plotWithoutAtomic);
-			CLManager::setKernelParamValue(k_produceSamples, 12, 0);
-			CLManager::setKernelParamValue(k_produceSamples, 13, numSampleThreads * numRenderFrames);
-			CLManager::runKernel(k_produceSamples);
-
-			std::cout << "Applying post process..." << std::endl;
-
-			//apply brightness and gamma
-			CLManager::setKernelRange(k_postProcess, numPixels);
-			CLManager::setKernelParamBuffer(k_postProcess, 0, { b_renderTexture, b_renderTexture });
-			CLManager::setKernelParamValue(k_postProcess, 5, numPixels);
-			CLManager::runKernel(k_postProcess);
-
-			//convert from float to byte for writing to file
-			CLManager::setKernelRange(k_floatToByte, numPixels);
-			CLManager::setKernelParamBuffer(k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
-			CLManager::setKernelParamValue(k_floatToByte, 2, numPixels);
-			CLManager::runKernel(k_floatToByte);
-
-			CLManager::deleteBuffer(b_renderTexture);
-			cam.setAspectRatio(previewTexWidth, previewTexHeight);
-		}
-		else
-		{
-			std::cout << "render size and samples match preview, so skipping re-render" << std::endl;
-
-			acquireGLObjects();
-			CLManager::setKernelRange(k_floatToByte, numPixels);
-			CLManager::setKernelParamGLBuffer(k_floatToByte, 0, { glb_previewTextureProcessed });
-			CLManager::setKernelParamBuffer(k_floatToByte, 1, { b_renderTextureBytes });
-			CLManager::setKernelParamValue(k_floatToByte, 2, numPixels);
-			CLManager::runKernel(k_floatToByte);
-			releaseGLObjects();
-		}
-		
-		std::cout << "Saving to " << renderOutputPath << std::endl;
-
-		//save the texture to an image
-		uint8_t* texture = new uint8_t[numPixels * 4];
-		CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, texture);
-		stbi_write_png_compression_level = 1;
-		stbi_flip_vertically_on_write(1);
-		stbi_write_png(renderOutputPath.c_str(), renderTexWidth, renderTexHeight, 4, texture, renderTexWidth * 4 * sizeof(uint8_t));
-		delete[] texture;
-		CLManager::deleteBuffer(b_renderTextureBytes);
-
-		std::cout << "Render complete" << std::endl;
-		appendInfo("Image finished, saved to " + renderOutputPath);
-	}
-
 	void saveUnprocessedData()
 	{
 		//save array of unprocessed pixel values
 		
-		bool doNewRender = !renderMatchPreview || clearOnUnpause;
+		/*bool doNewRender = !renderMatchPreview || clearOnUnpause;
 		if (doNewRender && !checkImageCanRender()) return;
 
 		std::string fileName = getStringTimestamp();
@@ -1965,6 +1840,7 @@ namespace ifs
 		f.close();
 		
 		delete[] data;
+		*/
 	}
 
 	float randomFloat()
@@ -2013,9 +1889,290 @@ namespace ifs
 	{
 		while (info.size() >= infoLength)
 		{
-			info.pop_front();
+			info.erase(info.begin());
 		}
 
 		info.push_back(s);
+	}
+
+	void replaceInfo(const uint32_t i, const std::string& s)
+	{
+		if (i < info.size())
+		{
+			info[i] = s;
+		}
+	}
+}
+
+namespace FileRender
+{
+	namespace
+	{
+		bool running = false;
+		bool cancelled = false;
+
+		std::string b_renderTexture = "renderTexture";
+		std::string b_renderTextureBytes = "renderTextureBytes";
+
+		bool checkImageCanRender(uint32_t width, uint32_t height)
+		{
+			uint32_t numPixels = width * height;
+			uint64_t numBytes = numPixels * 4 * sizeof(float);
+			uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
+			
+			if (numBytes > maxAllocationSize) return false;
+
+			return true;
+		}
+
+		std::string getStringTimestamp()
+		{
+			time_t rawTime;
+			tm* timeInfo;
+			char timeBuffer[32]; //probably only need 19 for YYYY-MM-DD_HH-MM-SS
+
+			time(&rawTime);
+			timeInfo = localtime(&rawTime);
+			strftime(timeBuffer, 80, "%F_%H-%M-%S", timeInfo);
+
+			return std::string(timeBuffer);
+		}
+
+		std::vector<Tile> getTiles(const uint32_t tileDivisions, const uint32_t desiredTileWidth, const uint32_t desiredTileHeight)
+		{
+			std::vector<Tile> tiles(tileDivisions * tileDivisions);
+
+			float widthError = 0;
+			float heightError = 0;
+
+			for (uint32_t yTile = 0; yTile < tileDivisions; yTile++)
+			{
+				uint32_t tileHeight = desiredTileHeight; //floored
+				heightError += desiredTileHeight - (float)tileHeight;
+				if (heightError >= 1.0f)
+				{
+					tileHeight += (uint32_t)heightError;
+					heightError -= (uint32_t)heightError;
+				}
+				
+				for (uint32_t xTile = 0; xTile < tileDivisions; xTile++)
+				{
+					uint32_t tileWidth = desiredTileWidth; //floored
+					widthError += desiredTileWidth - (float)tileWidth;
+					if (widthError >= 1.0f)
+					{
+						tileWidth += (uint32_t)widthError;
+						widthError -= (uint32_t)widthError;
+					}
+
+					Camera2D tileCam = ifs::cam;
+					tileCam.setAspectRatio(tileWidth, tileHeight);
+					glm::vec2 camOffsetPerTile = glm::vec3(tileCam.view / (float)tileDivisions, 0.0f) * 2.0f;
+
+					//calculate how many full cells from the centre this cell is
+					//NOTE: this only works with even number of tiles (currently only intend to use powers of 2)
+					float centreTileIndex = (tileDivisions - 1) * 0.5f; //e.g. 2 cells has centre 0.5, 4 cells has 1.5
+					int numCamTileOffsetsX = glm::max(glm::ceil(glm::abs((float)xTile - centreTileIndex)) - 1.0f, 0.0f);
+					int numCamTileOffsetsY = glm::max(glm::ceil(glm::abs((float)yTile - centreTileIndex)) - 1.0f, 0.0f);
+					
+					glm::vec2 camOffset = glm::vec2(0.0f);
+					if (tileDivisions > 1)
+					{
+						camOffset = camOffsetPerTile * 0.5f; //initial half tile offset from centre of grid
+						camOffset += glm::vec2(numCamTileOffsetsX, numCamTileOffsetsY) * camOffsetPerTile;
+					}
+
+					//if to the left of centre, then want to offset negatively
+					if ((float)xTile < centreTileIndex) camOffset.x = -camOffset.x;
+					if ((float)yTile < centreTileIndex) camOffset.y = -camOffset.y;
+
+					camOffset = glm::rotateZ(glm::vec3(camOffset, 0.0f), tileCam.angle);
+					
+					tileCam.updateZoom((float)tileDivisions);
+					tileCam.updatePosition(camOffset);
+
+					tiles[yTile * tileDivisions + xTile] = { tileWidth, tileHeight, tileCam.getMatViewCL() };
+				}
+			}
+
+			return tiles;
+		}
+
+		void taskSaveProcessedImage()
+		{
+
+		}
+
+		void taskSaveUnprocessedData()
+		{
+
+		}
+	}
+
+	bool getRunning()
+	{
+		return running;
+	}
+
+	void cancel()
+	{
+		cancelled = true;
+	}
+
+	void saveProcessedImage()
+	{
+		//render to an image file
+
+		bool doNewRender = !ifs::renderMatchPreview || ifs::clearOnUnpause;
+
+		//set save path
+		std::string fileName = getStringTimestamp();
+		for (uint32_t i = 0; i < ifs::currentFlame.numVariations; i++)
+		{
+			fileName += "_" + std::to_string(ifs::currentFlame.variations[i]);
+		}
+
+		std::vector<nfdu8filteritem_t> filters = { { "PNG Image", "png" } };
+		std::string renderOutputPath = FileDialog::saveDialog(fileName, filters);
+		if (renderOutputPath == "")
+		{
+			//pressed cancel, so don't render
+			ifs::appendInfo("Cancelled");
+			return;
+		}
+
+		std::vector<uint8_t> outputImage(ifs::renderTexWidth * ifs::renderTexHeight * 4);
+		if (doNewRender)
+		{
+			std::cout << "Rendering..." << std::endl;
+
+			//if desired image size cannot fit into a single memory allocation, divide into 4 tiles recursively until a
+			//single tile can fit.
+			uint32_t tileDivisions = 1;
+			float desiredTileWidth = (float)ifs::renderTexWidth;
+			float desiredTileHeight = (float)ifs::renderTexHeight;
+
+			//use ceil to avoid desired size being less than limit, but actual size being larger when error correction
+			//is applied
+			while (!checkImageCanRender(glm::ceil(desiredTileWidth), glm::ceil(desiredTileHeight)))
+			{
+				tileDivisions <<= 1;
+				desiredTileWidth = (float)ifs::renderTexWidth / tileDivisions;
+				desiredTileHeight = (float)ifs::renderTexHeight / tileDivisions;
+			}
+
+			std::vector<Tile> tiles = getTiles(tileDivisions, desiredTileWidth, desiredTileHeight);
+			uint32_t tilePixelStartX = 0;
+			uint32_t tilePixelStartY = 0;
+			uint32_t tileIndex = 0;
+			uint32_t tileRowSize = glm::sqrt(tiles.size()); //assuming number of tiles is always power of 2
+
+			ifs::appendInfo("Tile 0/" + std::to_string(tiles.size()));
+			ifs::appendInfo("Frame 0/" + std::to_string(ifs::numRenderFrames));
+			
+			for (const Tile& tile : tiles)
+			{
+				const uint32_t numPixels = tile.width * tile.height;
+				std::vector<uint8_t> tilePixels;
+				tilePixels.resize(numPixels * 4);
+
+				ifs::replaceInfo(ifs::info.size() - 2, "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()));
+				std::cout << "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()) << std::endl;
+				
+				CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
+
+				//produce the samples on the texture
+				CLManager::setKernelRange(ifs::k_produceSamples, ifs::numSampleThreads);
+				CLManager::setKernelParamBuffer(ifs::k_produceSamples, 0, { b_renderTexture });
+				CLManager::setKernelParamValue(ifs::k_produceSamples, 8, tile.matView);
+				CLManager::setKernelParamValue(ifs::k_produceSamples, 9, tile.width);
+				CLManager::setKernelParamValue(ifs::k_produceSamples, 10, tile.height);
+				CLManager::setKernelParamValue(ifs::k_produceSamples, 11, ifs::plotWithoutAtomic);
+				CLManager::setKernelParamValue(ifs::k_produceSamples, 13, ifs::numSampleThreads);
+
+				for (uint32_t frameNum = 0; frameNum < ifs::numRenderFrames; frameNum++)
+				{
+					if ((frameNum + 1) % 10 == 0)
+					{
+						ifs::replaceInfo(ifs::info.size() - 1, "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames));
+						std::cout << "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames) << std::endl;
+					}
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 12, frameNum);
+					CLManager::runKernel(ifs::k_produceSamples);
+				}
+
+				//apply brightness and gamma
+				CLManager::setKernelRange(ifs::k_postProcess, numPixels);
+				CLManager::setKernelParamBuffer(ifs::k_postProcess, 0, { b_renderTexture, b_renderTexture });
+				CLManager::setKernelParamValue(ifs::k_postProcess, 5, numPixels);
+				CLManager::runKernel(ifs::k_postProcess);
+
+				//convert from float to byte for writing to file
+				CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
+				CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
+				CLManager::setKernelParamBuffer(ifs::k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
+				CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
+				CLManager::runKernel(ifs::k_floatToByte);
+
+				CLManager::deleteBuffer(b_renderTexture);
+
+				//read pixel data back and add to output image
+				CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, tilePixels.data());
+
+				for (uint32_t row = 0; row < tile.height; row++)
+				{
+					uint32_t tileRowStartIndex = row * tile.width * 4;
+					uint32_t tileRowEndIndex = (row + 1) * tile.width * 4;
+					uint32_t outputRowStartIndex = ((tilePixelStartY + row) * ifs::renderTexWidth + tilePixelStartX) * 4;
+					std::copy(tilePixels.begin() + tileRowStartIndex, tilePixels.begin() + tileRowEndIndex, outputImage.begin() + outputRowStartIndex);
+				}
+
+				tileIndex++;
+
+				if (tileIndex % tileRowSize == 0)
+				{
+					tilePixelStartX = 0;
+					tilePixelStartY += tile.height;
+				}
+				else
+				{
+					tilePixelStartX += tile.width;
+				}
+			}
+		}
+		else
+		{
+			std::cout << "Render size and samples match preview, so skipping re-render" << std::endl;
+
+			uint32_t numPixels = ifs::renderTexWidth * ifs::renderTexHeight;
+			CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
+
+			ifs::acquireGLObjects();
+			CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
+			CLManager::setKernelParamGLBuffer(ifs::k_floatToByte, 0, { ifs::glb_previewTextureProcessed });
+			CLManager::setKernelParamBuffer(ifs::k_floatToByte, 1, { b_renderTextureBytes });
+			CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
+			CLManager::runKernel(ifs::k_floatToByte);
+			ifs::releaseGLObjects();
+
+			std::cout << "Saving to " << renderOutputPath << std::endl;
+
+			//save the texture to an image
+			CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, outputImage.data());
+		}
+
+		stbi_write_png_compression_level = 1;
+		stbi_flip_vertically_on_write(1);
+		stbi_write_png(renderOutputPath.c_str(), ifs::renderTexWidth, ifs::renderTexHeight, 4, outputImage.data(), ifs::renderTexWidth * 4 * sizeof(uint8_t));
+
+		CLManager::deleteBuffer(b_renderTextureBytes);
+		
+		ifs::appendInfo("Image saved to " + renderOutputPath);
+		std::cout << "Render complete" << std::endl;
+	}
+
+	void saveUnprocessedData()
+	{
+
 	}
 }
