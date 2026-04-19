@@ -1943,7 +1943,7 @@ namespace FileRender
 		}
 
 		template<typename Lambda, typename PixelChannel>
-		void doTiledRender(Lambda&& lambdaRender, std::vector<PixelChannel>& outputImage)
+		bool doTiledRender(Lambda&& lambdaRender, std::vector<PixelChannel>& outputImage)
 		{
 			//if desired image size cannot fit into a single memory allocation, divide into 4 tiles recursively until a
 			//single tile can fit.
@@ -1980,7 +1980,7 @@ namespace FileRender
 				ifs::replaceInfo(ifs::info.size() - 2, "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()));
 				std::cout << "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()) << std::endl;
 				
-				lambdaRender(numPixels, tile, tilePixels);
+				if (!lambdaRender(numPixels, tile, tilePixels)) return false;
 
 				for (uint32_t row = 0; row < tile.height; row++)
 				{
@@ -2003,6 +2003,8 @@ namespace FileRender
 					tilePixelStartX += tile.width;
 				}
 			}
+
+			return true;
 		}
 
 		void taskSaveProcessedImage()
@@ -2032,7 +2034,7 @@ namespace FileRender
 							cancelled = false;
 							CLManager::deleteBuffer(b_renderTexture);
 							ifs::appendInfo("Cancelled");
-							return;
+							return false;
 						}
 
 						if ((frameNum + 1) % 10 == 0)
@@ -2053,7 +2055,7 @@ namespace FileRender
 
 					//convert from float to byte for writing to file
 					CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
-					
+
 					CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
 					CLManager::setKernelParamBuffer(ifs::k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
 					CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
@@ -2064,9 +2066,11 @@ namespace FileRender
 					//read pixel data back and add to output image
 					CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, tilePixels.data());
 					CLManager::deleteBuffer(b_renderTextureBytes);
+
+					return true;
 				};
 				
-				doTiledRender(lambdaRender, outputImage);
+				if (!doTiledRender(lambdaRender, outputImage)) return; //cancelled
 			}
 			else
 			{
@@ -2137,7 +2141,7 @@ namespace FileRender
 							cancelled = false;
 							CLManager::deleteBuffer(b_renderTexture);
 							ifs::appendInfo("Cancelled");
-							return;
+							return false;
 						}
 
 						if ((frameNum + 1) % 10 == 0)
@@ -2152,9 +2156,11 @@ namespace FileRender
 
 					CLManager::readBuffer(b_renderTexture, numPixels * 4, tilePixels.data());
 					CLManager::deleteBuffer(b_renderTexture);
+
+					return true;
 				};
 
-				doTiledRender(lambdaRender, outputData);
+				if (!doTiledRender(lambdaRender, outputData)) return; //cancelled
 			}
 			else
 			{

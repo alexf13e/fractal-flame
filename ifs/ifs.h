@@ -24,13 +24,12 @@ namespace ifs
 	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen);
 	void resetCam();
 	
+	void togglePause();
+	void updatePausedCamMatrix();
 	float getCamZoom();
 	float getCamAngle();
 	bool getPaused();
 	bool getMaxPreviewFramesReached();
-	void togglePause();
-	void updatePausedCamMatrix();
-
 
 	void setPreviewTexSize(uint32_t width, uint32_t height);
 	void setMaxPreviewFrames(uint32_t n);
@@ -88,7 +87,7 @@ namespace FileRender
 		bool checkImageCanRender(uint32_t width, uint32_t height);
 		std::string getStringTimestamp();
 		std::vector<Tile> getTiles();
-		template<typename T> void doTiledRender(T&& lambdaRender);
+		template<typename Lambda, typename PixelChannel> bool doTiledRender(Lambda&& lambdaRender, std::vector<PixelChannel>& outputImage);
 
 		void taskSaveProcessedImage();
 		void taskSaveUnprocessedData();
