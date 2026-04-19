@@ -209,14 +209,7 @@ namespace ifs
 		constexpr float MAX_GAMMA = 5.0f;
 
 		constexpr int MIN_IMAGE_SIZE = 1;
-		constexpr int MAX_IMAGE_SIZE = 1 << 24;
-		//with this maximum, in extreme case of 1x2^24 image resolution, an allocation of 256MB (16 million pixels * 4
-		//floats per pixel * 4 bytes per float) needs to be possible to avoid splitting into tiles.
-		//the code is not currently designed for anything other than 2x2 splits, so would probably break/cause weird
-		//output if trying to split a dimension of size 1.
-		//max allocation seems to usually be around 25% of max gpu vram, and users with a gpu with less than 1GB of vram
-		//are perfectly welcome to use the program (even if probably quite rare in [curent year]).
-		//but if that rare user wants to render an image of 1x2^24 and can't, i feel ok saying thats not my problem.
+		constexpr int MAX_IMAGE_SIZE = 100000; //should be more than anyone ever needs
 
 		constexpr uint32_t infoLength = 5;
 		std::vector<std::string> info;

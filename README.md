@@ -1,5 +1,5 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your patience. Limitations are stated below.
+This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit of `100000x100000`. Limitations are stated below.
 
 <img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
 
@@ -25,12 +25,9 @@ See here for an explanation of how the images are produced: https://flam3.com/fl
   * To simplify the data being sent to the GPU (e.g. not supporting paramterised variations).
 * Only post-transforms can be applied to variations.
   * Simplify UI by only having one set of transformation options. May implement tabs to show different options or only one variation at a time.
-* Resolution limit is `2^24x2^24`, or around 16 million squared
-  * The code for dividing large images into tiles currently only supports `2x2` divisions.
-    * In the extreme case of a `1x2^24` image, the width cannot be divided, so the whole image must be allocated at once.
-    * This requires a GPU of around 1GB total VRAM (only ~25% can be allocated at once).
-    * If a user with a GPU with less than 1GB VRAM wants to render an image of `1x16777216` and can't, I'm going to go ahead and say thats not my problem.
-  * This is far beyond what any reasonable user would need or want, while still accomodating fairly old GPUs in all but the most extreme edge case resolutions.
+* Resolution limit is `100000x100000`
+  * I'd like to hope this is far beyond what anyone would reasonably (or unreasonably) need or want.
+  * At some point beyond this, there are issues combining the tiles into the final image with `std::copy` (I have not investigated the exact amount)
 * Colour processing options are somewhat limited.
   * Not my area of expertise; the currently available settings have felt sufficient for me.
   * The un-processed histogram can be exported and manually processed.
