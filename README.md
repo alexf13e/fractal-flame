@@ -1,8 +1,7 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on you GPU's VRAM. Limitations are mentioned below.
+This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your patience. Limitations are stated below.
 
 <img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
-
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
 
@@ -10,13 +9,13 @@ See here for example images with config files: https://alexf13e.neocities.org/fr
 
 See here for an explanation of how the images are produced: https://flam3.com/flame_draves.pdf.
 
-Some more powerful programs by other people include:
+### Some more-powerful programs by other people
 * Apophysis: https://sourceforge.net/projects/apophysis7x/
 * Chaotica: https://chaoticafractals.com/
 * Fractorium: http://fractorium.com/
 * Iterator.it: https://iterator.it/
 
-Limitations of the program (and why):
+### Limitations of the program (and why)
 * Not compatible with `.flame` files from other programs.
   * I have not implemented all their features, and it didn't make much sense to only apply parts of the files settings which are supported.
   * The file format I currently use is just a `.json` to store the variation, camera and color processing settings.
@@ -26,9 +25,12 @@ Limitations of the program (and why):
   * To simplify the data being sent to the GPU (e.g. not supporting paramterised variations).
 * Only post-transforms can be applied to variations.
   * Simplify UI by only having one set of transformation options. May implement tabs to show different options or only one variation at a time.
-* Resolution limit roughly proportional to 1/4th of GPU VRAM.
-  * Allocating the histogram in one chunk of memory limits it to be around 1/4th of GPU VRAM.
-  * May implement a rendering system which can divide larger images to be rendered in sections, requiring samples to be re-calculated in every section.
+* Resolution limit is `2^24x2^24`, or around 16 million squared
+  * The code for dividing large images into tiles currently only supports `2x2` divisions.
+    * In the extreme case of a `1x2^24` image, the width cannot be divided, so the whole image must be allocated at once.
+    * This requires a GPU of around 1GB total VRAM (only ~25% can be allocated at once).
+    * If a user with a GPU with less than 1GB VRAM wants to render an image of `1x16777216` and can't, I'm going to go ahead and say thats not my problem.
+  * This is far beyond what any reasonable user would need or want, while still accomodating fairly old GPUs in all but the most extreme edge case resolutions.
 * Colour processing options are somewhat limited.
   * Not my area of expertise; the currently available settings have felt sufficient for me.
   * The un-processed histogram can be exported and manually processed.
@@ -48,13 +50,13 @@ On startup, 3 random fractals are created. These can be edited and added to, wit
 
 The "colour processing" section on the left can help if the image is looking to dark or bright. See the section below for more information on how each setting works.
 
-Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. The raw pixel data can also be saved if you wish to manually process it - see the render section below for more details on the file format.
+Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. The raw pixel data can also be saved if you wish to manually process it - see the render section below for more details on the file format. If the image is too large, it will be divided into tiles which are individually rendered and joined together. Rendering progress is displayed in the info section, and can be cancelled if it is taking too long (except for after the image is complete and is being written to the file - if _that_ is taking too long, the only option is to kill the program and then delete the partially saved file).
 
 Configuration files to reproduce a given image can be saved and loaded with the buttons in the top right. Some examples are available here: https://alexf13e.neocities.org/fractals/.
 
-For Linux:
-* The program may not use the same GPU for OpenGL and OpenCL if you have more than one (e.g. in a laptop). If you have an Nvidia GPU, running `nvrun.sh` should make OpenGL and OpenCL use the same GPU. I do not have an AMD GPU available to test if a similar step is required for them.
-* If you are using Wayland, I have been unable to get OpenGL and OpenCL to cooperate there, so it is currently unsupported (sorry).
+### For Linux
+* The program may not use the same GPU for OpenGL and OpenCL if you have more than one (e.g. in a laptop). If you have an Nvidia GPU, running `nvrun.sh` should make the program use the Nvidia GPU for OpenGL, and the OpenCL context creation will try to find it to create a shared context. I do not have an AMD GPU available to test if a similar step is required for them.
+* If you are using Wayland, I have been unable to get OpenGL and OpenCL to cooperate there, so it is currently unsupported (sorry). Maybe in the future I will have the willpower to get compute and rending running under a single API with Vulkan.
 
 ### Controls
 The keyboard or mouse can be used to move, rotate and scale the fractal. Rotating and scaling is always relative to the centre of the screen. Note that keyboard controls move the **camera**, e.g. pressing the `A` key will move the camera to the left, and therefore the fractal moves to the right.
@@ -124,9 +126,10 @@ result = clamp(pix, 0.0f, 1.0f)
 * Save unprocessed data - save the pixel data without applying colour processing or converting to an image format.
   * The output file format begins with 8 bytes for the image dimensions - 4 byte `unsigned integers` for the width and height. The rest of the file consists of the pixel data, where each pixel component is stored in `RGBA` order, each as a 4 byte `float`.
   * The purpose of this is to be able to load the values into your own custom processing solution (e.g. python script) to have more control over the final colours.
+* While saving, a cancel button will appear if you want to stop. Note that once the program starts saving the result to a file, it cannot be cancelled.
 
 ### Info
-Sometimes useful information will be displayed here. There may also be information in the terminal window, which is likely behind the main window.
+Sometimes useful information will be displayed here, such as rendering progress. There may also be information in the terminal window, which is likely behind the main window.
 
 ### Variations
 * Save flame config - saves the current set of variation settings to a file.
