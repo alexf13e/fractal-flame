@@ -84,7 +84,7 @@ namespace FileRender
 			mat4wrap matView;
 		};
 
-		bool checkImageCanRender(uint32_t width, uint32_t height);
+		bool checkImageCanRender(uint64_t width, uint64_t height);
 		std::string getStringTimestamp();
 		std::vector<Tile> getTiles();
 		template<typename Lambda, typename PixelChannel> bool doTiledRender(Lambda&& lambdaRender, std::vector<PixelChannel>& outputImage);

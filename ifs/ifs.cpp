@@ -208,8 +208,14 @@ namespace ifs
 		constexpr float MIN_GAMMA = 0.1f;
 		constexpr float MAX_GAMMA = 5.0f;
 
-		constexpr int MIN_IMAGE_SIZE = 32;
-		constexpr int MAX_IMAGE_SIZE = 65536; //probably best to put something
+		constexpr int MIN_IMAGE_SIZE = 1;
+		constexpr int MAX_IMAGE_SIZE = 1 << 24;
+		//with this maximum, in extreme case of 1x2^24 image resolution, an allocation of 16MB needs to be possible to
+		//avoid splitting into tiles.
+		//the code is not currently designed for anything other than 2x2 splits, so would probably break/cause weird
+		//output if trying to split a dimension of size 1.
+		//max allocation seems to usually be around 25% of max gpu vram. if someone with a gpu with less than 64MB of
+		//vram wants to render an image of 1x2^24, i feel ok saying thats not my problem.
 
 		constexpr uint32_t infoLength = 5;
 		std::vector<std::string> info;
@@ -1856,9 +1862,9 @@ namespace FileRender
 
 		std::thread t;
 
-		bool checkImageCanRender(uint32_t width, uint32_t height)
+		bool checkImageCanRender(uint64_t width, uint64_t height)
 		{
-			uint32_t numPixels = width * height;
+			uint64_t numPixels = width * height;
 			uint64_t numBytes = numPixels * 4 * sizeof(float);
 			uint64_t maxAllocationSize = CLManager::device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
 			
