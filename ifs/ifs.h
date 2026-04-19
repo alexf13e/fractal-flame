@@ -94,6 +94,7 @@ namespace FileRender
 	}
 
 	bool getRunning();
+	bool getCancelled();
 	void cancel();
 
 	void saveProcessedImage();

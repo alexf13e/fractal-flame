@@ -5,6 +5,7 @@
 #include <stack>
 #include <fstream>
 #include <sstream>
+#include <thread>
 #include <time.h>
 #include <vector>
 
@@ -84,7 +85,6 @@ namespace ifs
 		uint32_t previewTexWidth, previewTexHeight;
 		uint32_t renderTexWidth, renderTexHeight;
 		bool renderMatchPreview;
-		uint8_t renderNextFrame, saveUnprocessedDataNextFrame;
 
 		float brightness;
 		float intensity;
@@ -257,6 +257,8 @@ namespace ifs
 
 	void updateCam(const glm::vec2& deltaPos, const float deltaZoom, const float deltaAngle)
 	{
+		if (FileRender::getRunning()) return;
+
 		cam.updatePosition(deltaPos);
 		cam.updateZoom(deltaZoom);
 		cam.updateRotation(deltaAngle);
@@ -267,6 +269,8 @@ namespace ifs
 
 	void updateCamPositionMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
+		if (FileRender::getRunning()) return;
+
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		currentMousePosNDC.y = 1.0f - currentMousePosNDC.y;
@@ -288,6 +292,8 @@ namespace ifs
 
 	void updateCamZoomMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
+		if (FileRender::getRunning()) return;
+
 		//rotate and zoom the view such that the point under the mouse stays attached to the mouse, and the centre of the screen stays at the centre
 		//the mouse point wants to be NDC so that 0,0 is in screen centre
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
@@ -312,6 +318,8 @@ namespace ifs
 
 	void updateCamRotationMouse(const glm::vec2& currentMousePosScreen, const glm::vec2& prevMousePosScreen)
 	{
+		if (FileRender::getRunning()) return;
+
 		glm::vec2 currentMousePosNDC = currentMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		glm::vec2 prevMousePosNDC = prevMousePosScreen / glm::vec2(previewTexWidth, previewTexHeight) * 2.0f - 1.0f;
 		currentMousePosNDC *= cam.view;
@@ -1067,6 +1075,7 @@ namespace ifs
 	{
 		float UI_SAMPLE_SETTINGS_WIDTH = 12.5f * ImGui::GetFontSize();
 		float UI_VARIATION_SETTINGS_WIDTH = 18.0f * ImGui::GetFontSize();
+		bool fileRendering = FileRender::getRunning();
 
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSizeConstraints(ImVec2(10, 10), ImVec2(previewTexWidth, previewTexHeight));
@@ -1107,6 +1116,8 @@ namespace ifs
 		ImGui::SeparatorText("Settings");
 
 		ImGui::PushItemWidth(UI_SAMPLE_SETTINGS_WIDTH);
+
+		if (fileRendering) ImGui::BeginDisabled();
 
 		if (ImGui::Button(paused ? "Resume" : "Pause", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
@@ -1173,7 +1184,7 @@ namespace ifs
 			if (delta != glm::vec2(0.0f))
 			{
 				cam.updatePosition(delta);
-				if (paused) clearOnUnpause = true;
+				if (paused) updatePausedCamMatrix();
 				else clearSingleFrame = true;
 			}
 		}
@@ -1186,7 +1197,7 @@ namespace ifs
 			if (delta != 1.0f)
 			{
 				cam.updateZoom(delta);
-				if (paused) clearOnUnpause = true;
+				if (paused) updatePausedCamMatrix();
 				else clearSingleFrame = true;
 			}
 		}
@@ -1200,7 +1211,7 @@ namespace ifs
 			if (delta != 0.0f)
 			{
 				cam.updateRotation(delta);
-				if (paused) clearOnUnpause = true;
+				if (paused) updatePausedCamMatrix();
 				else clearSingleFrame = true;
 			}
 		}
@@ -1276,14 +1287,33 @@ namespace ifs
 		if (ImGui::Button("Save as image", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
 			//to allow imgui to display info that saving has started, delay actually starting until next frame.
-			renderNextFrame = 2;
-			appendInfo("Saving image...");
+			FileRender::saveProcessedImage();
 		}
 
 		if (ImGui::Button("Save unprocessed data", ImVec2(UI_SAMPLE_SETTINGS_WIDTH, 0)))
 		{
-			saveUnprocessedDataNextFrame = 2;
 			appendInfo("Saving unprocessed data...");
+			FileRender::saveUnprocessedData();
+		}
+
+		if (fileRendering)
+		{
+			ImGui::EndDisabled();
+
+			bool cancelling = FileRender::getCancelled();
+			std::string btnText = "Cancel";
+			if (cancelling)
+			{
+				ImGui::BeginDisabled();
+				btnText = "Cancelling...";
+			}
+
+			if (ImGui::Button(btnText.c_str()))
+			{
+				FileRender::cancel();
+			}
+
+			if (cancelling) ImGui::EndDisabled();
 		}
 
 		ImGui::Spacing();
@@ -1303,6 +1333,8 @@ namespace ifs
 		ImGui::SetNextWindowSize(ImVec2(0, previewTexHeight), ImGuiCond_Once);
 		ImGui::SetNextWindowBgAlpha(0.3f);
 		ImGui::Begin("Variations", NULL);
+
+		if (fileRendering) ImGui::BeginDisabled();
 
 		if (currentFlame.numVariations > 0)
 		{
@@ -1492,6 +1524,8 @@ namespace ifs
 		ImGui::PopItemWidth();
 		ImGui::EndChild();
 
+		if (fileRendering) ImGui::EndDisabled();
+
 		ImGui::End();
 	}
 
@@ -1652,18 +1686,7 @@ namespace ifs
 
 	void update()
 	{
-		if (renderNextFrame == 1)
-		{
-			FileRender::saveProcessedImage();
-		}
-
-		if (saveUnprocessedDataNextFrame == 1)
-		{
-			//saveUnprocessedData();
-		}
-
-		if (renderNextFrame > 0) renderNextFrame--;
-		if (saveUnprocessedDataNextFrame > 0) saveUnprocessedDataNextFrame--;
+		if (FileRender::getRunning()) return;
 
 		if (!paused && clearEveryFrame)
 		{
@@ -1911,8 +1934,13 @@ namespace FileRender
 		bool running = false;
 		bool cancelled = false;
 
+		bool doNewRender;
+		std::string renderOutputPath;
+
 		std::string b_renderTexture = "renderTexture";
 		std::string b_renderTextureBytes = "renderTextureBytes";
+
+		std::thread t;
 
 		bool checkImageCanRender(uint32_t width, uint32_t height)
 		{
@@ -2000,7 +2028,156 @@ namespace FileRender
 
 		void taskSaveProcessedImage()
 		{
+			std::vector<uint8_t> outputImage(ifs::renderTexWidth * ifs::renderTexHeight * 4);
+			if (doNewRender)
+			{
+				std::cout << "Rendering..." << std::endl;
 
+				//if desired image size cannot fit into a single memory allocation, divide into 4 tiles recursively until a
+				//single tile can fit.
+				uint32_t tileDivisions = 1;
+				float desiredTileWidth = (float)ifs::renderTexWidth;
+				float desiredTileHeight = (float)ifs::renderTexHeight;
+
+				//use ceil to avoid desired size being less than limit, but actual size being larger when error correction
+				//is applied
+				while (!checkImageCanRender(glm::ceil(desiredTileWidth), glm::ceil(desiredTileHeight)))
+				{
+					tileDivisions <<= 1;
+					desiredTileWidth = (float)ifs::renderTexWidth / tileDivisions;
+					desiredTileHeight = (float)ifs::renderTexHeight / tileDivisions;
+				}
+
+				std::vector<Tile> tiles = getTiles(tileDivisions, desiredTileWidth, desiredTileHeight);
+				uint32_t tilePixelStartX = 0;
+				uint32_t tilePixelStartY = 0;
+				uint32_t tileIndex = 0;
+				uint32_t tileRowSize = glm::sqrt(tiles.size()); //assuming number of tiles is always power of 2
+
+				ifs::appendInfo("Tile 1/" + std::to_string(tiles.size()));
+				ifs::appendInfo("Frame 1/" + std::to_string(ifs::numRenderFrames));
+				
+				for (const Tile& tile : tiles)
+				{
+					const uint32_t numPixels = tile.width * tile.height;
+					std::vector<uint8_t> tilePixels;
+					tilePixels.resize(numPixels * 4);
+
+					ifs::replaceInfo(ifs::info.size() - 2, "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()));
+					std::cout << "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()) << std::endl;
+					
+					CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
+
+					//produce the samples on the texture
+					CLManager::setKernelRange(ifs::k_produceSamples, ifs::numSampleThreads);
+					CLManager::setKernelParamBuffer(ifs::k_produceSamples, 0, { b_renderTexture });
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 8, tile.matView);
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 9, tile.width);
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 10, tile.height);
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 11, ifs::plotWithoutAtomic);
+					CLManager::setKernelParamValue(ifs::k_produceSamples, 13, ifs::numSampleThreads);
+
+					for (uint32_t frameNum = 0; frameNum < ifs::numRenderFrames; frameNum++)
+					{
+						if (cancelled)
+						{
+							running = false;
+							cancelled = false;
+							CLManager::deleteBuffer(b_renderTexture);
+							ifs::appendInfo("Cancelled");
+							return;
+						}
+
+						if ((frameNum + 1) % 10 == 0)
+						{
+							ifs::replaceInfo(ifs::info.size() - 1, "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames));
+							std::cout << "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames) << std::endl;
+						}
+
+						CLManager::setKernelParamValue(ifs::k_produceSamples, 12, frameNum);
+						CLManager::runKernel(ifs::k_produceSamples);
+					}
+
+					//apply brightness and gamma
+					CLManager::setKernelRange(ifs::k_postProcess, numPixels);
+					CLManager::setKernelParamBuffer(ifs::k_postProcess, 0, { b_renderTexture, b_renderTexture });
+					CLManager::setKernelParamValue(ifs::k_postProcess, 5, numPixels);
+					CLManager::runKernel(ifs::k_postProcess);
+
+					//convert from float to byte for writing to file
+					CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
+					CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
+					CLManager::setKernelParamBuffer(ifs::k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
+					CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
+					CLManager::runKernel(ifs::k_floatToByte);
+
+					CLManager::deleteBuffer(b_renderTexture);
+
+					//read pixel data back and add to output image
+					CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, tilePixels.data());
+					CLManager::deleteBuffer(b_renderTextureBytes);
+
+					for (uint32_t row = 0; row < tile.height; row++)
+					{
+						uint32_t tileRowStartIndex = row * tile.width * 4;
+						uint32_t tileRowEndIndex = (row + 1) * tile.width * 4;
+						uint32_t outputRowStartIndex = ((tilePixelStartY + row) * ifs::renderTexWidth + tilePixelStartX) * 4;
+						std::copy(tilePixels.begin() + tileRowStartIndex, tilePixels.begin() + tileRowEndIndex, outputImage.begin() + outputRowStartIndex);
+					}
+
+					tileIndex++;
+
+					if (tileIndex % tileRowSize == 0)
+					{
+						tilePixelStartX = 0;
+						tilePixelStartY += tile.height;
+					}
+					else
+					{
+						tilePixelStartX += tile.width;
+					}
+				}
+			}
+			else
+			{
+				std::cout << "Render size and samples match preview, so skipping re-render" << std::endl;
+
+				uint32_t numPixels = ifs::renderTexWidth * ifs::renderTexHeight;
+				CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
+
+				ifs::acquireGLObjects();
+				CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
+				CLManager::setKernelParamGLBuffer(ifs::k_floatToByte, 0, { ifs::glb_previewTextureProcessed });
+				CLManager::setKernelParamBuffer(ifs::k_floatToByte, 1, { b_renderTextureBytes });
+				CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
+				CLManager::runKernel(ifs::k_floatToByte);
+				ifs::releaseGLObjects();
+
+				//save the texture to an image
+				CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, outputImage.data());
+				CLManager::deleteBuffer(b_renderTextureBytes);
+			}
+
+			if (cancelled)
+			{
+				running = false;
+				cancelled = false;
+				ifs::appendInfo("Cancelled");
+				return;
+			}
+
+			ifs::appendInfo("Writing to file...");
+			std::cout << "Saving to " << renderOutputPath << std::endl;
+
+			stbi_write_png_compression_level = 1;
+			stbi_flip_vertically_on_write(1);
+			stbi_write_png(renderOutputPath.c_str(), ifs::renderTexWidth, ifs::renderTexHeight, 4, outputImage.data(), ifs::renderTexWidth * 4 * sizeof(uint8_t));
+			
+			ifs::appendInfo("Image saved to " + renderOutputPath);
+			std::cout << "Render complete" << std::endl;
+
+			running = false;
+			cancelled = false;
 		}
 
 		void taskSaveUnprocessedData()
@@ -2014,6 +2191,11 @@ namespace FileRender
 		return running;
 	}
 
+	bool getCancelled()
+	{
+		return cancelled;
+	}
+
 	void cancel()
 	{
 		cancelled = true;
@@ -2021,9 +2203,13 @@ namespace FileRender
 
 	void saveProcessedImage()
 	{
+		if (running) return;
+
+		ifs::appendInfo("Saving image...");
+
 		//render to an image file
 
-		bool doNewRender = !ifs::renderMatchPreview || ifs::clearOnUnpause;
+		doNewRender = !ifs::renderMatchPreview || ifs::clearOnUnpause;
 
 		//set save path
 		std::string fileName = getStringTimestamp();
@@ -2033,7 +2219,7 @@ namespace FileRender
 		}
 
 		std::vector<nfdu8filteritem_t> filters = { { "PNG Image", "png" } };
-		std::string renderOutputPath = FileDialog::saveDialog(fileName, filters);
+		renderOutputPath = FileDialog::saveDialog(fileName, filters);
 		if (renderOutputPath == "")
 		{
 			//pressed cancel, so don't render
@@ -2041,138 +2227,15 @@ namespace FileRender
 			return;
 		}
 
-		std::vector<uint8_t> outputImage(ifs::renderTexWidth * ifs::renderTexHeight * 4);
-		if (doNewRender)
-		{
-			std::cout << "Rendering..." << std::endl;
-
-			//if desired image size cannot fit into a single memory allocation, divide into 4 tiles recursively until a
-			//single tile can fit.
-			uint32_t tileDivisions = 1;
-			float desiredTileWidth = (float)ifs::renderTexWidth;
-			float desiredTileHeight = (float)ifs::renderTexHeight;
-
-			//use ceil to avoid desired size being less than limit, but actual size being larger when error correction
-			//is applied
-			while (!checkImageCanRender(glm::ceil(desiredTileWidth), glm::ceil(desiredTileHeight)))
-			{
-				tileDivisions <<= 1;
-				desiredTileWidth = (float)ifs::renderTexWidth / tileDivisions;
-				desiredTileHeight = (float)ifs::renderTexHeight / tileDivisions;
-			}
-
-			std::vector<Tile> tiles = getTiles(tileDivisions, desiredTileWidth, desiredTileHeight);
-			uint32_t tilePixelStartX = 0;
-			uint32_t tilePixelStartY = 0;
-			uint32_t tileIndex = 0;
-			uint32_t tileRowSize = glm::sqrt(tiles.size()); //assuming number of tiles is always power of 2
-
-			ifs::appendInfo("Tile 0/" + std::to_string(tiles.size()));
-			ifs::appendInfo("Frame 0/" + std::to_string(ifs::numRenderFrames));
-			
-			for (const Tile& tile : tiles)
-			{
-				const uint32_t numPixels = tile.width * tile.height;
-				std::vector<uint8_t> tilePixels;
-				tilePixels.resize(numPixels * 4);
-
-				ifs::replaceInfo(ifs::info.size() - 2, "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()));
-				std::cout << "Tile " + std::to_string(tileIndex + 1) + "/" + std::to_string(tiles.size()) << std::endl;
-				
-				CLManager::createBuffer<float>(b_renderTexture, numPixels * 4);
-
-				//produce the samples on the texture
-				CLManager::setKernelRange(ifs::k_produceSamples, ifs::numSampleThreads);
-				CLManager::setKernelParamBuffer(ifs::k_produceSamples, 0, { b_renderTexture });
-				CLManager::setKernelParamValue(ifs::k_produceSamples, 8, tile.matView);
-				CLManager::setKernelParamValue(ifs::k_produceSamples, 9, tile.width);
-				CLManager::setKernelParamValue(ifs::k_produceSamples, 10, tile.height);
-				CLManager::setKernelParamValue(ifs::k_produceSamples, 11, ifs::plotWithoutAtomic);
-				CLManager::setKernelParamValue(ifs::k_produceSamples, 13, ifs::numSampleThreads);
-
-				for (uint32_t frameNum = 0; frameNum < ifs::numRenderFrames; frameNum++)
-				{
-					if ((frameNum + 1) % 10 == 0)
-					{
-						ifs::replaceInfo(ifs::info.size() - 1, "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames));
-						std::cout << "Frame " + std::to_string(frameNum + 1) + "/" + std::to_string(ifs::numRenderFrames) << std::endl;
-					}
-					CLManager::setKernelParamValue(ifs::k_produceSamples, 12, frameNum);
-					CLManager::runKernel(ifs::k_produceSamples);
-				}
-
-				//apply brightness and gamma
-				CLManager::setKernelRange(ifs::k_postProcess, numPixels);
-				CLManager::setKernelParamBuffer(ifs::k_postProcess, 0, { b_renderTexture, b_renderTexture });
-				CLManager::setKernelParamValue(ifs::k_postProcess, 5, numPixels);
-				CLManager::runKernel(ifs::k_postProcess);
-
-				//convert from float to byte for writing to file
-				CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
-				CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
-				CLManager::setKernelParamBuffer(ifs::k_floatToByte, 0, { b_renderTexture, b_renderTextureBytes });
-				CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
-				CLManager::runKernel(ifs::k_floatToByte);
-
-				CLManager::deleteBuffer(b_renderTexture);
-
-				//read pixel data back and add to output image
-				CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, tilePixels.data());
-
-				for (uint32_t row = 0; row < tile.height; row++)
-				{
-					uint32_t tileRowStartIndex = row * tile.width * 4;
-					uint32_t tileRowEndIndex = (row + 1) * tile.width * 4;
-					uint32_t outputRowStartIndex = ((tilePixelStartY + row) * ifs::renderTexWidth + tilePixelStartX) * 4;
-					std::copy(tilePixels.begin() + tileRowStartIndex, tilePixels.begin() + tileRowEndIndex, outputImage.begin() + outputRowStartIndex);
-				}
-
-				tileIndex++;
-
-				if (tileIndex % tileRowSize == 0)
-				{
-					tilePixelStartX = 0;
-					tilePixelStartY += tile.height;
-				}
-				else
-				{
-					tilePixelStartX += tile.width;
-				}
-			}
-		}
-		else
-		{
-			std::cout << "Render size and samples match preview, so skipping re-render" << std::endl;
-
-			uint32_t numPixels = ifs::renderTexWidth * ifs::renderTexHeight;
-			CLManager::createBuffer<uint8_t>(b_renderTextureBytes, numPixels * 4);
-
-			ifs::acquireGLObjects();
-			CLManager::setKernelRange(ifs::k_floatToByte, numPixels);
-			CLManager::setKernelParamGLBuffer(ifs::k_floatToByte, 0, { ifs::glb_previewTextureProcessed });
-			CLManager::setKernelParamBuffer(ifs::k_floatToByte, 1, { b_renderTextureBytes });
-			CLManager::setKernelParamValue(ifs::k_floatToByte, 2, numPixels);
-			CLManager::runKernel(ifs::k_floatToByte);
-			ifs::releaseGLObjects();
-
-			std::cout << "Saving to " << renderOutputPath << std::endl;
-
-			//save the texture to an image
-			CLManager::readBuffer(b_renderTextureBytes, numPixels * 4, outputImage.data());
-		}
-
-		stbi_write_png_compression_level = 1;
-		stbi_flip_vertically_on_write(1);
-		stbi_write_png(renderOutputPath.c_str(), ifs::renderTexWidth, ifs::renderTexHeight, 4, outputImage.data(), ifs::renderTexWidth * 4 * sizeof(uint8_t));
-
-		CLManager::deleteBuffer(b_renderTextureBytes);
-		
-		ifs::appendInfo("Image saved to " + renderOutputPath);
-		std::cout << "Render complete" << std::endl;
+		//run task
+		running = true;
+		cancelled = false;
+		t = std::thread(taskSaveProcessedImage);
+		t.detach();
 	}
 
 	void saveUnprocessedData()
 	{
-
+		ifs::appendInfo("Saving unprocessed data...");
 	}
 }
