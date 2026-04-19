@@ -88,6 +88,7 @@ namespace FileRender
 		bool checkImageCanRender(uint32_t width, uint32_t height);
 		std::string getStringTimestamp();
 		std::vector<Tile> getTiles();
+		template<typename T> void doTiledRender(T&& lambdaRender);
 
 		void taskSaveProcessedImage();
 		void taskSaveUnprocessedData();
