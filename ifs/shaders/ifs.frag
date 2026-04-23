@@ -27,7 +27,7 @@ void main()
     int x = int(uv.x * texWidth);
     int y = int(uv.y * texHeight);
 
-    if (x < 0 || x >= texWidth || y < 0 || y >= texWidth)
+    if (x < 0 || x >= texWidth || y < 0 || y >= texHeight)
     {
         outColor = vec4(vec3(0.0f), 1.0f);
     }
