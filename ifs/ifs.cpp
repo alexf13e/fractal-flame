@@ -1416,7 +1416,7 @@ namespace ifs
 
 			ImGui::SameLine();
 
-			if (ImGui::Button("colors", ImVec2(BUTTON_WIDTH, 0.0f)))
+			if (ImGui::Button("Colors", ImVec2(BUTTON_WIDTH, 0.0f)))
 			{
 				previousFlames.push(currentFlame);
 
