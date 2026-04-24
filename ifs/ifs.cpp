@@ -1526,7 +1526,7 @@ namespace ifs
 				ImGui::EndCombo();
 			}
 
-			if (ImGui::ColorEdit3("color", &currentFlame.colors[i * 3]))
+			if (ImGui::ColorEdit3("Color", &currentFlame.colors[i * 3]))
 			{
 				glm::vec3 col = { currentFlame.colors[i * 3], currentFlame.colors[i * 3 + 1], currentFlame.colors[i * 3 + 2] };
 				setVariationcolor(i, col);
