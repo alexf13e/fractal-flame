@@ -444,6 +444,7 @@ void plot(global float* renderTexture, float2 p, float3 c, float16 matView, uint
 	
 	int pixelX = u * texWidth;
 	int pixelY = v * texHeight;
+	pixelY = texHeight - pixelY - 1;
 
 	//use of atomics here can cause big slow down if lots of points end up in the same pixel
 	uint pixelIndex = pixelY * texWidth + pixelX;
@@ -528,13 +529,32 @@ kernel void produceSamples(global float* renderTexture, global uint* variations,
 
 std::string strPostProcess = KERNEL_R_STRING(
 kernel void postProcess(global float4* renderTexture, global float4* renderTextureProcessed, float brightness,
-	float intensity, float gamma, uint numPixels)
+	float intensity, float gamma, uint numPixels, uchar superSample, uint superSampleTexWidth)
 {
 	const uint i = get_global_id(0);
 	if (i >= numPixels) return;
 
-	float4 pix = renderTexture[i];
-
+	float4 pix = (float4)(0.0f);
+	if (superSample > 1)
+	{
+		uint outputTexWidth = superSampleTexWidth / superSample;
+		for (uchar sy = 0; sy < superSample; sy++)
+		for (uchar sx = 0; sx < superSample; sx++)
+		{
+			uint ix = i % outputTexWidth;
+			uint iy = i / outputTexWidth;
+	
+			uint si = (iy * superSample + sy) * superSampleTexWidth + ix * superSample + sx;
+			pix += renderTexture[si];
+		}
+	
+		pix /= superSample * superSample;
+	}
+	else
+	{
+		pix = renderTexture[i];
+	}
+	
 	if (pix.w <= 0.0f)
 	{
 		renderTextureProcessed[i] = (float4)(0.0f, 0.0f, 0.0f, 1.0f);

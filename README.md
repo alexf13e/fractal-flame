@@ -1,5 +1,5 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit of `100000x100000`. Limitations are stated below.
+This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your disk space, GPU VRAM, and patience. Detailed technical limitations are stated below.
 
 <img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
 
@@ -25,9 +25,15 @@ See here for an explanation of how the images are produced: https://flam3.com/fl
   * To simplify the data being sent to the GPU (e.g. not supporting paramterised variations).
 * Only post-transforms can be applied to variations.
   * Simplify UI by only having one set of transformation options. May implement tabs to show different options or only one variation at a time.
-* Resolution limit is `100000x100000`
-  * I'd like to hope this is far beyond what anyone would reasonably (or unreasonably) need or want.
-  * At some point beyond this, there are issues combining the tiles into the final image with `std::copy` (I have not investigated the exact amount)
+* Resolution limit theoretical maximum is dependent on libpng limiting to `2^31 - 1` squared.
+  * The width limit will almost certainly be lower depending on your GPU.
+    * The maximum width requires `(2^31 - 1) pixels * 4 floats per pixel * 4 bytes per float = 34 359 738 352B` (~34GB) to be allocated in one go.
+    * It generally seems the maximum that can be allocated in one go is ~25% of total VRAM.
+    * Maybe at some point in the future this will be even slightly relevant.
+    * My GPU with 2GB total VRAM has a width limit of `32675840` pixels.
+  * I have been unable to find a program which can open images more than around `20000x20000` on my laptop, even though it should be possible with ones such as https://github.com/libvips/vipsdisp.
+    * Writing sections of large images to different files gives viewable images which are correct, but I am unable to verify if the full single files are correct.
+  * Is anyone ever going to want more than a few 10s of thousands of pixels squared though (or even use the program at all)?
 * Colour processing options are somewhat limited.
   * Not my area of expertise; the currently available settings have felt sufficient for me.
   * The un-processed histogram can be exported and manually processed.
@@ -47,7 +53,7 @@ On startup, 3 random fractals are created. These can be edited and added to, wit
 
 The "colour processing" section on the left can help if the image is looking to dark or bright. See the section below for more information on how each setting works.
 
-Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. The raw pixel data can also be saved if you wish to manually process it - see the render section below for more details on the file format. If the image is too large, it will be divided into tiles which are individually rendered and joined together. Rendering progress is displayed in the info section, and can be cancelled if it is taking too long (except for after the image is complete and is being written to the file - if _that_ is taking too long, the only option is to kill the program and then delete the partially saved file).
+Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. If the image is too large, it will be divided into tiles which are individually rendered and joined together. Rendering progress is displayed in the info section, and can be cancelled if it is taking too long.
 
 Configuration files to reproduce a given image can be saved and loaded with the buttons in the top right. Some examples are available here: https://alexf13e.neocities.org/fractals/.
 
@@ -93,7 +99,7 @@ The the three options here don't necessarily follow their traditional effects on
 
 There is no dedicated saturation slider, however the image appears more saturated with lower gamma (increase brightness to compensate as the image will become darker), and vice versa for reduced saturation.
 
-The full colour processing algorithm is provided below to hopefully make it clearer what these options do. Prior to this step, a pixel's value will have the colour of a variation added to its `xyz` values, and 1 added to its `z` value.
+The full colour processing algorithm is provided below to hopefully make it clearer what these options do. Prior to this step, a pixel's value will have the colour of a variation added to its `xyz` values, and 1 added to its `z` value every time a sample is plotted on it.
 ```
 //pix.w is the number of samples which have landed on this pixel
 if (pix.w <= 0) draw background and return
@@ -119,11 +125,8 @@ result = clamp(pix, 0.0f, 1.0f)
   * NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, so are often darker. Compensate for this with the darkness slider or more samples.
 * Number of frames - how many frames-worth of samples to render.
   * Should be set higher when rendering higher resolution images as more samples are needed to cover all the pixels.
-* Save as image - click to select a location to save the image, and then it will be rendered.
-* Save unprocessed data - save the pixel data without applying colour processing or converting to an image format.
-  * The output file format begins with 8 bytes for the image dimensions - 4 byte `unsigned integers` for the width and height. The rest of the file consists of the pixel data, where each pixel component is stored in `RGBA` order, each as a 4 byte `float`.
-  * The purpose of this is to be able to load the values into your own custom processing solution (e.g. python script) to have more control over the final colours.
-* While saving, a cancel button will appear if you want to stop. Note that once the program starts saving the result to a file, it cannot be cancelled.
+* Save image - click to select a location to save the image, and then it will be rendered.
+* While saving, a cancel button will appear if you want to stop.
 
 ### Info
 Sometimes useful information will be displayed here, such as rendering progress. There may also be information in the terminal window, which is likely behind the main window.
@@ -149,9 +152,9 @@ There is a limit of 64 variations at once. This is fairly arbitrary (a maximum o
 * GLFW - https://www.glfw.org/
 * glm - https://github.com/g-truc/glm
 * ImGui - https://github.com/ocornut/imgui
+* json - https://github.com/nlohmann/json
+* libpng - https://sourceforge.net/projects/libpng/files/
 * Native File Dialog Extended - https://github.com/btzy/nativefiledialog-extended
 * OpenCL - https://github.com/KhronosGroup/OpenCL-SDK
-* stb image - https://github.com/nothings/stb/tree/master
-* json - https://github.com/nlohmann/json
 
-On Linux, chances are your package manager has some of these, e.g. `glfw` `glm` `nvidia-opencl` `mesa-opencl`
+On Linux, chances are your package manager has some of these, e.g. `glfw` `glm` `libpng` `nvidia-opencl` `mesa-opencl`

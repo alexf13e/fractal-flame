@@ -10,10 +10,10 @@ void Camera2D::updateViewMatrix()
 	matView = glm::translate(glm::rotate(glm::ortho(-view.x, view.x, -view.y, view.y), -angle, glm::vec3(0.0f, 0.0f, 1.0f)), -glm::vec3(position, 0.0f));
 }
 
-void Camera2D::setAspectRatio(const float width, const float height)
+void Camera2D::setAspectRatio(const float width, const float height, const bool expandLargerDimension)
 {
 	ar = width / height;
-	updateView(ar);
+	updateView(expandLargerDimension);
 }
 
 mat4wrap Camera2D::getMatViewCL()
@@ -41,15 +41,18 @@ void Camera2D::reset()
 	updateView(ar);
 }
 
-void Camera2D::updateView(float aspectRatio)
+void Camera2D::updateView(const bool expandLargerDimension)
 {
-	if (aspectRatio > 1.0f)
+	bool expandWidth = ar > 1.0f;
+	if (!expandLargerDimension) expandWidth = !expandWidth;
+	
+	if (expandWidth)
 	{
-		view = glm::vec2(aspectRatio, 1.0f) / zoom;
+		view = glm::vec2(ar, 1.0f) / zoom;
 	}
 	else
 	{
-		view = glm::vec2(1.0f, 1.0f / aspectRatio) / zoom;
+		view = glm::vec2(1.0f, 1.0f / ar) / zoom;
 	}
 
 	updateViewMatrix();

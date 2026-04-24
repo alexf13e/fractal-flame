@@ -20,13 +20,13 @@ public:
 	float zoom;
 	float angle;
 
-	void setAspectRatio(const float width, const float height);
+	void setAspectRatio(const float width, const float height, const bool expandLargerDimension=true);
 	mat4wrap getMatViewCL();
 
 	void init(const float width, const float height, const glm::vec2& defaultPos);
 	void reset();
 
-	void updateView(float aspectRatio);
+	void updateView(const bool expandLargerDimension=true);
 	void updatePosition(const glm::vec2& deltaPos);
 	void updateZoom(const float deltaZoom);
 	void updateRotation(const float deltaAngle);

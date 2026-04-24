@@ -320,7 +320,7 @@ int main()
 
 		glfwSwapBuffers(window);
 
-		if (ifs::getPaused() || ifs::getMaxPreviewFramesReached())
+		if (ifs::getPaused() || ifs::getMaxPreviewFramesReached() || FileRender::getRunning())
 		{
 			glfwSwapInterval(1);
 		}

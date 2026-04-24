@@ -78,19 +78,11 @@ namespace FileRender
 {
 	namespace
 	{
-		struct Tile
-		{
-			uint32_t width, height;
-			mat4wrap matView;
-		};
-
-		bool checkImageCanRender(uint64_t width, uint64_t height);
 		std::string getStringTimestamp();
-		std::vector<Tile> getTiles();
-		template<typename Lambda, typename PixelChannel> bool doTiledRender(Lambda&& lambdaRender, std::vector<PixelChannel>& outputImage);
+		template<typename Lambda, typename PixelChannel> bool doRowBatchRender(Lambda&& lambdaRender);
 
 		void taskSaveProcessedImage();
-		void taskSaveUnprocessedData();
+		//void taskSaveUnprocessedData();
 	}
 
 	bool getRunning();
@@ -98,7 +90,7 @@ namespace FileRender
 	void cancel();
 
 	void saveProcessedImage();
-	void saveUnprocessedData();
+	//void saveUnprocessedData();
 }
 
 #endif
