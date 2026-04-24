@@ -123,9 +123,11 @@ result = clamp(pix, 0.0f, 1.0f)
 * Match preview - the resolution and number of samples will match the preview to produce the same image.
 * Render resolution - the size in pixels of the output file.
   * This does not affect the preview, which uses the resolution of the window.
-  * NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, so are often darker. Compensate for this with the darkness slider or more samples.
+  * NOTE: the brightness of a pixel is proportional to the amount of times a sample point is rendered to it. Higher resolutions have a lower chance of each pixel being rendered to, so are often darker. Compensate for this with the brightness slider or more samples. This also applies when using supersampling, which just multiplies the resolution.
 * Number of frames - how many frames-worth of samples to render.
   * Should be set higher when rendering higher resolution images as more samples are needed to cover all the pixels.
+* Supersampling - increases the resolution when calculating samples, then averages e.g. 2x2 groups of pixels for the x2 setting.
+  * The averaging occurs before pixels have log scaling applied, so should look slightly better than rendering at a high resolution and then shrinking the image afterward.
 * Save image - click to select a location to save the image, and then it will be rendered.
 * While saving, a cancel button will appear if you want to stop.
 
