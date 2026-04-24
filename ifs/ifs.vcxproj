@@ -71,14 +71,24 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(SolutionDir)..\..\cpp\_headers\libpng;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;$(LibraryPath)</LibraryPath>
     <SourcePath>$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath)</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(IncludePath)</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(SolutionDir)..\..\cpp\_headers\libpng;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;$(LibraryPath)</LibraryPath>
     <SourcePath>$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath)</SourcePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;</LibraryPath>
+    <SourcePath>$(VC_SourcePath);$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath);</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(SolutionDir)..\..\cpp\_headers\libpng;$(IncludePath);</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(SolutionDir)..\_lib;$(SolutionDir)..\..\cpp\_lib;</LibraryPath>
+    <SourcePath>$(VC_SourcePath);$(SolutionDir)..\..\cpp\_src\imgui;$(SourcePath);</SourcePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)..\..\cpp\_headers\nfd;$(SolutionDir)..\..\cpp\_headers\imgui;$(SolutionDir)..\..\cpp\_headers;$(SolutionDir)..\_headers;$(SolutionDir)..\..\cpp\_headers\libpng;$(IncludePath);</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -90,6 +100,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;libpng16.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -98,12 +109,13 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;libpng16.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -118,7 +130,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;libpng16.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -135,7 +147,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glfw3.lib;opengl32.lib;OpenCL.lib;nfd.lib;ole32.lib;uuid.lib;shell32.lib;libpng16.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -153,6 +165,7 @@
     <ClCompile Include="kernels.cpp" />
     <ClCompile Include="Key.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="pngwriter.cpp" />
     <ClCompile Include="ShaderProgram.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -164,8 +177,8 @@
     <ClInclude Include="KernelRString.h" />
     <ClInclude Include="kernels.h" />
     <ClInclude Include="Key.h" />
+    <ClInclude Include="pngwriter.h" />
     <ClInclude Include="ShaderProgram.h" />
-    <ClInclude Include="stb_image_write.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

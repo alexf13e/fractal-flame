@@ -60,6 +60,9 @@
     <ClCompile Include="..\..\..\cpp\_src\imgui\imgui_widgets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="pngwriter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="KernelRString.h">
@@ -86,10 +89,10 @@
     <ClInclude Include="common_def.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="stb_image_write.h">
+    <ClInclude Include="filedialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="filedialog.h">
+    <ClInclude Include="pngwriter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
