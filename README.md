@@ -1,7 +1,7 @@
 # Fractal Flame Iterated Function System
-This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your disk space, GPU VRAM, and patience. Detailed technical limitations are stated below.
+This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your disk space, VRAM, and patience. Detailed technical limitations are stated below.
 
-<img width="1808" height="1238" alt="Screenshot_20260406_201115" src="https://github.com/user-attachments/assets/7c32bd92-72cc-4d82-b0bd-4005e8749a8b" />
+<img width="1808" height="1238" alt="Screenshot_20260424_014246" src="https://github.com/user-attachments/assets/542529b2-3a92-4cd4-8835-16ee385c9d13" />
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
 
@@ -53,7 +53,8 @@ On startup, 3 random fractals are created. These can be edited and added to, wit
 
 The "colour processing" section on the left can help if the image is looking to dark or bright. See the section below for more information on how each setting works.
 
-Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. If the image is too large, it will be divided into tiles which are individually rendered and joined together. Rendering progress is displayed in the info section, and can be cancelled if it is taking too long.
+Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. If the image is too large to be rendered in one go, it will be divided into groups of rows which are individually rendered and saved to the image file one at a time. Rendering progress is displayed in the info section at the bottom left, and can be cancelled if it is taking too long.<img width="1808" height="1238" alt="Screenshot_20260424_014246" src="https://github.com/user-attachments/assets/ede0695b-6c92-47c2-9c0d-1f6d1992fc4b" />
+
 
 Configuration files to reproduce a given image can be saved and loaded with the buttons in the top right. Some examples are available here: https://alexf13e.neocities.org/fractals/.
 
