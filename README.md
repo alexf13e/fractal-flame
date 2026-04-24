@@ -53,8 +53,7 @@ On startup, 3 random fractals are created. These can be edited and added to, wit
 
 The "colour processing" section on the left can help if the image is looking to dark or bright. See the section below for more information on how each setting works.
 
-Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. If the image is too large to be rendered in one go, it will be divided into groups of rows which are individually rendered and saved to the image file one at a time. Rendering progress is displayed in the info section at the bottom left, and can be cancelled if it is taking too long.<img width="1808" height="1238" alt="Screenshot_20260424_014246" src="https://github.com/user-attachments/assets/ede0695b-6c92-47c2-9c0d-1f6d1992fc4b" />
-
+Once a satisfactory image has been created, it can then be rendered to a png image file, optionally at a different resolution and sample count to the preview. If the image is too large to be rendered in one go, it will be divided into groups of rows which are individually rendered and saved to the image file one at a time. Rendering progress is displayed in the info section at the bottom left, and can be cancelled if it is taking too long.
 
 Configuration files to reproduce a given image can be saved and loaded with the buttons in the top right. Some examples are available here: https://alexf13e.neocities.org/fractals/.
 
