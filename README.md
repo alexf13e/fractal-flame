@@ -1,6 +1,5 @@
 # Fractal Flame Iterated Function System
 This program is for generating simple fractal flames on the GPU using OpenCL. The main focus is providing a relatively friendly interface for still images of 2D systems, with a resolution limit dependent on your disk space, VRAM, and patience. Detailed technical limitations are stated below.
-
 <img width="1808" height="1238" alt="Screenshot_20260424_014246" src="https://github.com/user-attachments/assets/542529b2-3a92-4cd4-8835-16ee385c9d13" />
 
 The program can be downloaded from the releases page: https://github.com/alexf13e/fractal-flame/releases.
