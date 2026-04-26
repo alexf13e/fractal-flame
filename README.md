@@ -35,8 +35,6 @@ See here for an explanation of how the images are produced: https://flam3.com/fl
   * Is anyone ever going to want more than a few 10s of thousands of pixels squared though (or even use the program at all)?
 * Colour processing options are somewhat limited.
   * Not my area of expertise; the currently available settings have felt sufficient for me.
-  * The un-processed histogram can be exported and manually processed.
-
 
 ## Installation
 Download either the Windows or Linux zip file from the releases page: https://github.com/alexf13e/fractal-flame/releases. Extract the folder in the zip file, then run the executable. You will probably get a smartscreen popup on Windows and I'm not important enough to stop that from appearing. Click run anyway if you trust me, or by all means build the program yourself.
